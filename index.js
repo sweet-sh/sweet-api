@@ -72,7 +72,7 @@ app.post('/api/login', function (req, res) {
 app.get('/api/posts/:context?/:timestamp?/:identifier?', async function (req, res) {
   const timestamp = req.params.timestamp ? new Date(parseInt(req.params.timestamp)) : Date.now()
   console.log(timestamp)
-  const postsPerPage = 5
+  const postsPerPage = 20
   const userId = req.header('Authorization');
   const user = (await User.findOne({ _id: userId }))
   const myFollowedUserIds = ((await Relationship.find({ from: user.email, value: 'follow' })).map(v => v.toUser)).concat([user._id])
