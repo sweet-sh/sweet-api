@@ -26,7 +26,7 @@ const Post = require('./models/post')
 require('./models/tag')
 require('./models/community')
 require('./models/vote')
-require('./models/image')
+const Image = require('./models/image')
 
 const sendError = (status, message) => {
   return {
@@ -398,18 +398,23 @@ app.post('/api/plus/:postid', async (req, res) => {
 })
 
 app.post('/api/post', async (req, res) => {
+  console.log("New post", req.body)
   const userId = req.header('Authorization');
   const user = (await User.findOne({ _id: userId }))
   const postContent = req.body.content
-  const inlineElements = {
-    type: 'image(s)',
-    images: req.body.images
-  }
 
   if (!user || !postContent) {
     return res.status(500).send(sendError(500, 'Post content empty or user not found'))
   }
   const parsedPayload = parsePost(postContent)
+
+  console.log(parsedPayload)
+
+  const inlineElements = {
+    type: 'image(s)',
+    images: req.body.images,
+    position: parsedPayload.array.length // At the end of the post
+  }
 
   const newPostUrl = nanoid()
   const postCreationTime = new Date()
@@ -435,7 +440,23 @@ app.post('/api/post', async (req, res) => {
     subscribedUsers: [user._id]
   })
 
-  post.save()
+
+  req.body.images.forEach(async (filename) => {
+    const image = new Image({
+      // context: postType === 'community' ? 'community' : 'user',
+      context: 'user',
+      filename: 'images/' + filename,
+      url: 'https://sweet-images.s3.eu-west-2.amazonaws.com/images/' + filename,
+      privacy: 'public',
+      user: user._id,
+      // quality: postImageQuality,
+      // height: metadata.height,
+      // width: metadata.width
+    })
+    await image.save()
+  })
+  
+  await post.save()
   .then((response) => {
     console.log("New post posted!")
     return res.status(200).send(sendResponse(response, 200))

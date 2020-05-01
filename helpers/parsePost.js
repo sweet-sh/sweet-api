@@ -40,8 +40,10 @@ const sanitizeHTML = (html) => {
 
 const parsePost = (rawText, mentionsEnabled = true, hashtagsEnabled = true, urlsEnabled = true) => {
   console.log('Parsing content')
-  rawText = rawText.split(/\r\n|\r|\n/gi).map(line => line = "<p>" + line + "</p>").join('')
-  rawText = rawText.replace(/(<p><\/p>)/g, '') // filter out blank lines
+  splitText = rawText.split(/\r\n|\r|\n/gi).map(line => line = "<p>" + line + "</p>").filter(line => line !== '<p></p>')
+  let lineCount = splitText.length
+  rawText = splitText.join('')
+  // rawText = rawText.replace(/(<p><\/p>)/g, '') // filter out blank lines
 
   const mentionRegex = /(^|[^@\w])@([\w-]{1,30})[\b-]*/g
   const mentionReplace = '$1<a href="/$2">@$2</a>'
@@ -77,6 +79,7 @@ const parsePost = (rawText, mentionsEnabled = true, hashtagsEnabled = true, urls
 
   const parsedPost = {
     text: rawText,
+    array: splitText,
     mentions: trimmedMentions,
     tags: trimmedTags
   }
