@@ -402,7 +402,7 @@ app.post('/api/post', async (req, res) => {
   const user = (await User.findOne({ _id: userId }))
   const postContent = req.body.content
   const inlineElements = {
-    type: 'image',
+    type: 'image(s)',
     images: req.body.images
   }
 
