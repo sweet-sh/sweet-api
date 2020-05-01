@@ -360,7 +360,9 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async function (req, re
 
 app.post('/api/plus/:postid', async (req, res) => {
   const userId = req.header('Authorization');
+  console.log(userId)
   const user = (await User.findOne({ _id: userId }))
+  console.log(user)
   let plusAction
   Post.findOne({
     _id: req.params.postid
