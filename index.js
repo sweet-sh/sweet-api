@@ -385,7 +385,7 @@ app.post('/api/plus/:postid', async (req, res) => {
       if (plusAction === 'add' && !post.author._id.equals(user._id)) {
         // notifier.notify('user', 'plus', post.author._id, user._id, null, '/' + post.author.username + '/' + post.url, 'post');
       }
-      return res.status(200).send(sendResponse({ plusesNumber: post.numberOfPluses, plusAction: plusAction }, 200))
+      return res.status(200).send(sendResponse({ pluses: post.pluses, plusAction: plusAction }, 200))
     })
   })
   .catch(error => {
