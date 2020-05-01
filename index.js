@@ -358,6 +358,41 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async function (req, re
   return res.status(200).send(sendResponse(displayedPosts, 200))
 })
 
+app.post('/api/plus/:postid', async (req, res) => {
+  const userId = req.header('Authorization');
+  const user = (await User.findOne({ _id: userId }))
+  let plusAction
+  Post.findOne({
+    _id: req.params.postid
+  }, {
+    url: 1,
+    author: 1,
+    pluses: 1,
+    numberOfPluses: 1
+  }).populate('author')
+  .then((post) => {
+    if (post.pluses.some(plus => plus.author.equals(user._id))) {
+      // This post already has a plus from this user, so we're unplussing it
+      post.pluses = post.pluses.filter(plus => !plus.author.equals(user._id))
+      plusAction = 'remove'
+    } else {
+      post.pluses.push({ author: user._id, type: 'plus', timestamp: new Date() })
+      plusAction = 'add'
+    }
+    post.numberOfPluses = post.pluses.length
+    post.save().then((updatedPost) => {
+      // Don't notify yourself if you plus your own posts, you weirdo
+      if (plusAction === 'add' && !post.author._id.equals(user._id)) {
+        // notifier.notify('user', 'plus', post.author._id, user._id, null, '/' + post.author.username + '/' + post.url, 'post');
+      }
+      return res.status(200).send(sendResponse({ plusesNumber: post.numberOfPluses, plusAction: plusAction }, 200))
+    })
+  })
+  .catch(error => {
+    console.log(error)
+    return res.status(500).send(sendError(500, 'Error fetching post to plus'))
+  })
+})
 
 app.listen(port)
 
