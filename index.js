@@ -5,6 +5,8 @@ const bodyParser = require('body-parser')
 const morgan = require('morgan')
 const bcrypt = require('bcrypt');
 const moment = require('moment')
+const {nanoid} = require('nanoid')
+const {parsePost} = require('./helpers/parsePost')
 
 // CORS
 app.use((req, res, next) => {
@@ -362,7 +364,6 @@ app.post('/api/plus/:postid', async (req, res) => {
   const userId = req.header('Authorization');
   console.log(userId)
   const user = (await User.findOne({ _id: userId }))
-  console.log(user)
   let plusAction
   Post.findOne({
     _id: req.params.postid
@@ -393,6 +394,51 @@ app.post('/api/plus/:postid', async (req, res) => {
   .catch(error => {
     console.log(error)
     return res.status(500).send(sendError(500, 'Error fetching post to plus'))
+  })
+})
+
+app.post('/api/post', async (req, res) => {
+  const userId = req.header('Authorization');
+  const user = (await User.findOne({ _id: userId }))
+  const postContent = req.body.content
+  const inlineElements = {
+    type: 'image',
+    images: req.body.images
+  }
+
+  if (!user || !postContent) {
+    return res.status(500).send(sendError(500, 'Post content empty or user not found'))
+  }
+  const parsedPayload = parsePost(postContent)
+
+  const newPostUrl = nanoid()
+  const postCreationTime = new Date()
+
+  const post = new Post({
+    // type: isCommunityPost ? 'community' : req.body.isDraft ? 'draft' : 'original',
+    // community: isCommunityPost ? req.body.communityId : undefined,
+    authorEmail: user.email,
+    author: user._id,
+    url: newPostUrl,
+    // privacy: isCommunityPost ? 'public' : req.body.isDraft ? 'private' : req.body.postPrivacy,
+    privacy: 'public',
+    timestamp: postCreationTime,
+    lastUpdated: postCreationTime,
+    rawContent: req.body.content,
+    parsedContent: parsedPayload.text,
+    numberOfComments: 0,
+    mentions: parsedPayload.mentions,
+    tags: parsedPayload.tags,
+    contentWarnings: req.body.postContentWarnings,
+    imageVersion: 3,
+    inlineElements: inlineElements,
+    subscribedUsers: [user._id]
+  })
+
+  post.save()
+  .then((response) => {
+    console.log("New post posted!")
+    return res.status(200).send(sendResponse(response, 200))
   })
 })
 
