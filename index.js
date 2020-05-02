@@ -71,7 +71,11 @@ app.post('/api/login', function (req, res) {
     })
 })
 
-app.get('/api/posts/:context?/:timestamp?/:identifier?', async function (req, res) {
+app.get('/api/post/:postid', async (req, res) => {
+
+})
+
+app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
   const timestamp = req.params.timestamp ? new Date(parseInt(req.params.timestamp)) : Date.now()
   console.log(timestamp)
   const postsPerPage = 20
@@ -152,6 +156,11 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async function (req, re
       }
       matchPosts = await getTag()
       break;
+    case 'single':
+      matchPosts = {
+        _id: req.params.identifier,
+        type: { $ne: 'draft' }
+      }
   }
 
   matchPosts[sortMethod.substring(1, sortMethod.length)] = { $lt: timestamp }
@@ -170,7 +179,7 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async function (req, re
     .populate('comments.replies.replies.replies.author', 'username imageEnabled image displayName')
     .populate('comments.replies.replies.replies.replies.author', 'username imageEnabled image displayName')
     .populate('boostTarget')
-    .populate('boostsV2.booster')
+    .populate('boostsV2.booster', 'username imageEnabled image displayName')
 
   // so this will be called when the query retrieves the posts we want
   const posts = await query
@@ -180,9 +189,8 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async function (req, re
   }
 
   let displayedPost
-  let oldesttimestamp
   // this gets the timestamp of the last post, this tells the browser to ask for posts older than this next time. used in feeds, not with single posts
-  oldesttimestamp = '' + posts[posts.length - 1][sortMethod.substring(1, sortMethod.length)].getTime()
+  // let oldesttimestamp = '' + posts[posts.length - 1][sortMethod.substring(1, sortMethod.length)].getTime()
 
   const displayedPosts = [] // populated by the for loop below
 
