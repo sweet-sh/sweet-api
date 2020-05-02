@@ -440,21 +440,22 @@ app.post('/api/post', async (req, res) => {
     subscribedUsers: [user._id]
   })
 
-
-  req.body.images.forEach(async (filename) => {
-    const image = new Image({
-      // context: postType === 'community' ? 'community' : 'user',
-      context: 'user',
-      filename: 'images/' + filename,
-      url: 'https://sweet-images.s3.eu-west-2.amazonaws.com/images/' + filename,
-      privacy: 'public',
-      user: user._id,
-      // quality: postImageQuality,
-      // height: metadata.height,
-      // width: metadata.width
+  if (req.body.images.length) {
+    req.body.images.forEach(async (filename) => {
+      const image = new Image({
+        // context: postType === 'community' ? 'community' : 'user',
+        context: 'user',
+        filename: 'images/' + filename,
+        url: 'https://sweet-images.s3.eu-west-2.amazonaws.com/images/' + filename,
+        privacy: 'public',
+        user: user._id,
+        // quality: postImageQuality,
+        // height: metadata.height,
+        // width: metadata.width
+      })
+      await image.save()
     })
-    await image.save()
-  })
+  }
   
   await post.save()
   .then((response) => {
