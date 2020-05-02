@@ -577,18 +577,34 @@ app.post('/api/comment/:postid/:commentid?', async (req, res) => {
         post.subscribedUsers.push(user._id.toString())
       }
 
+      if (req.body.images) {
+        req.body.images.forEach(async (filename) => {
+          const image = new Image({
+            context: post.communityId ? 'community' : 'user',
+            filename: 'images/' + filename,
+            url: 'https://sweet-images.s3.eu-west-2.amazonaws.com/images/' + filename,
+            privacy: postPrivacy,
+            user: user._id,
+            // quality: postImageQuality,
+            // height: metadata.height,
+            // width: metadata.width
+          })
+          await image.save()
+        })
+      }
+
       post.save()
         .then(async () => {
-            // Notification code would go here
-            return res.status(200).send(sendResponse(post, 200))
-          })
-        })
-        .catch((error) => {
-          console.error(error)
-          return res.status(500).send(sendError(403, 'Error saving comment'))
+          // Notification code would go here
+          return res.status(200).send(sendResponse(post, 200))
         })
     })
+    .catch((error) => {
+      console.error(error)
+      return res.status(500).send(sendError(403, 'Error saving comment'))
+    })
+})
 
-  app.listen(port)
+app.listen(port)
 
-  console.log('Server booting on default port: ' + port)
+console.log('Server booting on default port: ' + port)
