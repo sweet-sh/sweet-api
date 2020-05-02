@@ -648,10 +648,10 @@ app.post('/api/community/join', async (req, res) => {
   if (!community || !user) {
     return res.status(403).send(sendError(403, 'Community or user not found'))
   }
-  if (community.bannedMembers.includes(req.user._id)) {
+  if (community.bannedMembers.includes(user._id)) {
     return res.status(403).send(sendError(403, 'Community or user not found'))
   }
-  if (community.members.some(v => v.equals(req.user._id)) || user.communities.some(v => v.toString() === req.body.communityId)) {
+  if (community.members.some(v => v.equals(user._id)) || user.communities.some(v => v.toString() === req.body.communityId)) {
     return res.status(406).send(sendError(406, 'User already member of community'))
   }
   community.members.push(user._id)
@@ -669,7 +669,7 @@ app.post('/api/community/leave', async (req, res) => {
   if (!community || !user) {
     return res.status(403).send(sendError(403, 'Community or user not found'))
   }
-  community.members.pull(req.user._id)
+  community.members.pull(user._id)
   await community.save()
   user.communities.pull(req.body.communityId)
   await user.save()
