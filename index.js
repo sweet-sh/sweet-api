@@ -45,6 +45,18 @@ const sendResponse = (data, status, message) => {
   }
 }
 
+function touchCommunity (id) {
+  Community.findOneAndUpdate({
+    _id: id
+  }, {
+    $set: {
+      lastUpdated: new Date()
+    }
+  }).then(community => {
+    console.log('Updated community!')
+  })
+}
+
 app.post('/api/login', function (req, res) {
   // Check if anything has been submitted
   if (!req.body.email || !req.body.password) {
@@ -432,8 +444,8 @@ app.post('/api/post', async (req, res) => {
   const postCreationTime = new Date()
 
   const post = new Post({
-    // type: isCommunityPost ? 'community' : req.body.isDraft ? 'draft' : 'original',
-    // community: isCommunityPost ? req.body.communityId : undefined,
+    type: isCommunityPost ? 'community' : isDraft ? 'draft' : 'original',
+    community: isCommunityPost ? req.body.communityId : undefined,
     authorEmail: user.email,
     author: user._id,
     url: newPostUrl,
@@ -627,6 +639,41 @@ app.get('/api/communities/all', (req, res) => {
     console.error(error)
     return res.status(500).send(sendError(403, 'Error fetching communities'))
   })
+})
+
+app.post('/api/community/join', async (req, res) => {
+  const userId = req.header('Authorization');
+  const user = (await User.findOne({ _id: userId }))
+  const community = await Community.findOne({ _id: req.body.communityId })
+  if (!community || !user) {
+    return res.status(403).send(sendError(403, 'Community or user not found'))
+  }
+  if (community.bannedMembers.includes(req.user._id)) {
+    return res.status(403).send(sendError(403, 'Community or user not found'))
+  }
+  if (community.members.some(v => v.equals(req.user._id)) || user.communities.some(v => v.toString() === req.body.communityId)) {
+    return res.status(406).send(sendError(406, 'User already member of community'))
+  }
+  community.members.push(user._id)
+  await community.save()
+  touchCommunity(req.body.communityId)
+  user.communities.push(req.params.communityId)
+  await user.save()
+  return res.sendStatus(200)
+})
+
+app.post('/api/community/leave', async (req, res) => {
+  const userId = req.header('Authorization');
+  const user = (await User.findOne({ _id: userId }))
+  const community = await Community.findOne({ _id: req.body.communityId })
+  if (!community || !user) {
+    return res.status(403).send(sendError(403, 'Community or user not found'))
+  }
+  community.members.pull(req.user._id)
+  await community.save()
+  user.communities.pull(req.body.communityId)
+  await user.save()
+  return res.sendStatus(200)
 })
 
 
