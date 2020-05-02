@@ -676,7 +676,7 @@ app.post('/api/community/leave', async (req, res) => {
   return res.sendStatus(200)
 })
 
-app.get('/api/user/:userid', async (req, res) => {
+app.get('/api/user/:username', async (req, res) => {
   function c(e) {
     console.error('Error in user data builders')
     console.error(e)
@@ -687,7 +687,7 @@ app.get('/api/user/:userid', async (req, res) => {
   if (!user) {
     return res.status(403).send(sendError(403, 'Not authorized'))
   }
-  const profileData = await User.findById(req.params.userid, 'email username imageEnabled image displayName aboutParsed aboutRaw location pronouns websiteParsed websiteRaw')
+  const profileData = await User.find({ username: req.params.username }, 'email username imageEnabled image displayName aboutParsed aboutRaw location pronouns websiteParsed websiteRaw')
     .catch(err => {
       return res.status(500).send(sendError(500, 'Error fetching user'))
     })
