@@ -24,7 +24,7 @@ const User = require('./models/user')
 const Relationship = require('./models/relationship')
 const Post = require('./models/post')
 require('./models/tag')
-require('./models/community')
+const Community = require('./models/community')
 require('./models/vote')
 const Image = require('./models/image')
 
@@ -601,9 +601,26 @@ app.post('/api/comment/:postid/:commentid?', async (req, res) => {
     })
     .catch((error) => {
       console.error(error)
-      return res.status(500).send(sendError(403, 'Error saving comment'))
+      return res.status(500).send(sendError(500, 'Error saving comment'))
     })
 })
+
+app.get('/api/communities/all', (req, res) => {
+  Community.find({})
+  .sort('name')
+  .then(communities => {
+    if (!communities.length) {
+      return res.status(404).send(sendError(400, 'No communities found!'))
+    } else {
+      return res.status(200).send(sendResponse(communities, 200))
+    }
+  })
+  .catch((error) => {
+    console.error(error)
+    return res.status(500).send(sendError(403, 'Error fetching communities'))
+  })
+})
+
 
 app.listen(port)
 
