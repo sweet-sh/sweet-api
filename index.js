@@ -526,6 +526,7 @@ app.post('/api/comment/:postid/:commentid?', async (req, res) => {
     timestamp: commentCreationTime,
     rawContent: commentContent,
     parsedContent: parsedPayload.text,
+    cachedHtml: { fullContentHtml: parsedPayload.text },
     mentions: parsedPayload.mentions,
     tags: parsedPayload.tags,
     inlineElements: inlineElements
@@ -567,6 +568,9 @@ app.post('/api/comment/:postid/:commentid?', async (req, res) => {
 
       post.numberOfComments = countComments(post.comments)
       post.lastUpdated = new Date()
+      // We reset the cache time of the post to force the comments to reload on the web version
+      post.cachedHtml.imageGalleryMTime = null
+      post.cachedHtml.embedsMTime = null
 
       // Add user to subscribed users for post
       if ((!post.author._id.equals(user._id) && !post.subscribedUsers.includes(user._id.toString()))) { // Don't subscribe to your own post, or to a post you're already subscribed to
