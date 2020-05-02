@@ -583,7 +583,8 @@ app.post('/api/comment/:postid/:commentid?', async (req, res) => {
             return res.status(200).send(sendResponse(post, 200))
           })
         })
-        .catch((err) => {
+        .catch((error) => {
+          console.error(error)
           return res.status(500).send(sendError(403, 'Error saving comment'))
         })
     })
