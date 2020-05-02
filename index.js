@@ -5,8 +5,8 @@ const bodyParser = require('body-parser')
 const morgan = require('morgan')
 const bcrypt = require('bcrypt');
 const moment = require('moment')
-const {nanoid} = require('nanoid')
-const {parsePost} = require('./helpers/parsePost')
+const { nanoid } = require('nanoid')
+const { parseText } = require('./helpers/parseText')
 
 // CORS
 app.use((req, res, next) => {
@@ -373,28 +373,28 @@ app.post('/api/plus/:postid', async (req, res) => {
     pluses: 1,
     numberOfPluses: 1
   }).populate('author')
-  .then((post) => {
-    if (post.pluses.some(plus => plus.author.equals(user._id))) {
-      // This post already has a plus from this user, so we're unplussing it
-      post.pluses = post.pluses.filter(plus => !plus.author.equals(user._id))
-      plusAction = 'remove'
-    } else {
-      post.pluses.push({ author: user._id, type: 'plus', timestamp: new Date() })
-      plusAction = 'add'
-    }
-    post.numberOfPluses = post.pluses.length
-    post.save().then((updatedPost) => {
-      // Don't notify yourself if you plus your own posts, you weirdo
-      if (plusAction === 'add' && !post.author._id.equals(user._id)) {
-        // notifier.notify('user', 'plus', post.author._id, user._id, null, '/' + post.author.username + '/' + post.url, 'post');
+    .then((post) => {
+      if (post.pluses.some(plus => plus.author.equals(user._id))) {
+        // This post already has a plus from this user, so we're unplussing it
+        post.pluses = post.pluses.filter(plus => !plus.author.equals(user._id))
+        plusAction = 'remove'
+      } else {
+        post.pluses.push({ author: user._id, type: 'plus', timestamp: new Date() })
+        plusAction = 'add'
       }
-      return res.status(200).send(sendResponse({ pluses: post.pluses, plusAction: plusAction }, 200))
+      post.numberOfPluses = post.pluses.length
+      post.save().then((updatedPost) => {
+        // Don't notify yourself if you plus your own posts, you weirdo
+        if (plusAction === 'add' && !post.author._id.equals(user._id)) {
+          // notifier.notify('user', 'plus', post.author._id, user._id, null, '/' + post.author.username + '/' + post.url, 'post');
+        }
+        return res.status(200).send(sendResponse({ pluses: post.pluses, plusAction: plusAction }, 200))
+      })
     })
-  })
-  .catch(error => {
-    console.log(error)
-    return res.status(500).send(sendError(500, 'Error fetching post to plus'))
-  })
+    .catch(error => {
+      console.log(error)
+      return res.status(500).send(sendError(500, 'Error fetching post to plus'))
+    })
 })
 
 app.post('/api/post', async (req, res) => {
@@ -402,11 +402,15 @@ app.post('/api/post', async (req, res) => {
   const userId = req.header('Authorization');
   const user = (await User.findOne({ _id: userId }))
   const postContent = req.body.content
+  const contentWarning = req.body.contentWarning
+  const isPrivate = req.body.isPrivate
+  const isCommunityPost = req.body.isCommunityPost
+  const isDraft = req.body.isDraft
 
   if (!user || !postContent) {
     return res.status(500).send(sendError(500, 'Post content empty or user not found'))
   }
-  const parsedPayload = parsePost(postContent)
+  const parsedPayload = parseText(postContent)
 
   console.log(parsedPayload)
 
@@ -425,8 +429,8 @@ app.post('/api/post', async (req, res) => {
     authorEmail: user.email,
     author: user._id,
     url: newPostUrl,
-    // privacy: isCommunityPost ? 'public' : req.body.isDraft ? 'private' : req.body.postPrivacy,
-    privacy: 'public',
+    // Community posts are always public, drafts are always private, otherwise we check the privacy setting
+    privacy: isCommunityPost ? 'public' : isDraft ? 'private' : isPrivate ? 'private' : 'public',
     timestamp: postCreationTime,
     lastUpdated: postCreationTime,
     rawContent: req.body.content,
@@ -434,7 +438,7 @@ app.post('/api/post', async (req, res) => {
     numberOfComments: 0,
     mentions: parsedPayload.mentions,
     tags: parsedPayload.tags,
-    contentWarnings: req.body.postContentWarnings,
+    contentWarnings: contentWarning,
     imageVersion: 3,
     inlineElements: inlineElements,
     subscribedUsers: [user._id]
@@ -443,11 +447,10 @@ app.post('/api/post', async (req, res) => {
   if (req.body.images) {
     req.body.images.forEach(async (filename) => {
       const image = new Image({
-        // context: postType === 'community' ? 'community' : 'user',
-        context: 'user',
+        context: isCommunityPost ? 'community' : 'user',
         filename: 'images/' + filename,
         url: 'https://sweet-images.s3.eu-west-2.amazonaws.com/images/' + filename,
-        privacy: 'public',
+        privacy: isPrivate ? 'private' : 'public',
         user: user._id,
         // quality: postImageQuality,
         // height: metadata.height,
@@ -456,14 +459,128 @@ app.post('/api/post', async (req, res) => {
       await image.save()
     })
   }
-  
+
   await post.save()
-  .then((response) => {
-    console.log("New post posted!")
-    return res.status(200).send(sendResponse(response, 200))
-  })
+    .then((response) => {
+      console.log("New post posted!")
+      return res.status(200).send(sendResponse(response, 200))
+    })
 })
 
-app.listen(port)
+app.post('/api/comment/:postid/:commentid?', async (req, res) => {
+  // loop over the array of comments adding 1 +  countComments on its replies to the count variable.
+  function countComments(comments) {
+    let count = 0
+    for (const comment of comments) {
+      if (!comment.deleted) {
+        count += 1
+        if (comment.replies.length) {
+          count += countComments(comment.replies)
+        }
+      }
+    }
+    return count
+  }
 
-console.log('Server booting on default port: ' + port)
+  function findCommentByID(id, comments, depth = 1) {
+    for (const comment of comments) {
+      if (comment._id.equals(id)) {
+        return { commentParent: comment, depth }
+      } else {
+        if (comment.replies.length > 0) {
+          const searchReplies = findCommentByID(id, comment.replies, depth + 1)
+          if (searchReplies !== 0) {
+            return searchReplies
+          }
+        }
+      }
+    }
+    return 0
+  }
+
+  console.log("New comment", req.body)
+  const userId = req.header('Authorization');
+  const user = (await User.findOne({ _id: userId }))
+
+  const commentCreationTime = new Date()
+  const commentId = mongoose.Types.ObjectId()
+  const commentContent = req.body.content
+
+  if (!user || !commentContent) {
+    return res.status(500).send(sendError(500, 'Comment content empty or user not found'))
+  }
+
+  const parsedPayload = parseText(commentContent)
+  const inlineElements = {
+    type: 'image(s)',
+    images: req.body.images,
+    position: parsedPayload.array.length // At the end of the comment
+  }
+
+  console.log(parsedPayload)
+
+  const comment = {
+    _id: commentId,
+    authorEmail: user.email,
+    author: user._id,
+    timestamp: commentCreationTime,
+    rawContent: commentContent,
+    parsedContent: parsedPayload.text,
+    mentions: parsedPayload.mentions,
+    tags: parsedPayload.tags,
+    inlineElements: inlineElements
+  }
+
+  Post.findOne({ _id: req.params.postid })
+    .populate('author')
+    .then(async (post) => {
+      let postType
+      let postPrivacy
+      if (post.communityId) {
+        postType = 'community'
+        postPrivacy = (await Community.findById(post.communityId)).settings.visibility
+      } else {
+        postType = 'original'
+        postPrivacy = post.privacy
+      }
+      let depth
+      let commentParent
+      if (req.params.commentid === 'undefined') {
+        depth = 1
+        commentParent = undefined
+        // This is a top level comment with no parent (identified by commentid)
+        post.comments.push(comment)
+      } else {
+        // This is a child level comment so we have to drill through the comments
+        // until we find it
+        ({ commentParent, depth } = findCommentByID(req.params.commentid, post.comments))
+        if (!commentParent) {
+          return res.status(403).send(sendError(403, 'Parent comment not found'))
+        } else if (depth > 5) {
+          return res.status(403).send(sendError(403, 'Comment too deep'))
+        }
+        commentParent.replies.push(comment)
+      }
+
+      post.numberOfComments = countComments(post.comments)
+      post.lastUpdated = new Date()
+
+      // Add user to subscribed users for post
+      if ((!post.author._id.equals(user._id) && !post.subscribedUsers.includes(user._id.toString()))) { // Don't subscribe to your own post, or to a post you're already subscribed to
+        post.subscribedUsers.push(user._id.toString())
+      }
+
+      post.save()
+        .then(async () => {
+            // Notification code would go here
+            return res.status(200).send(sendResponse(post, 200))
+          })
+        })
+        .catch((err) => {
+          return res.status(500).send(sendError(403, 'Error saving comment'))
+        })
+    })
+
+  app.listen(port)
+
+  console.log('Server booting on default port: ' + port)

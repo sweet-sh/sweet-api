@@ -38,7 +38,7 @@ const sanitizeHTML = (html) => {
   })
 }
 
-const parsePost = (rawText, mentionsEnabled = true, hashtagsEnabled = true, urlsEnabled = true) => {
+const parseText = (rawText, mentionsEnabled = true, hashtagsEnabled = true, urlsEnabled = true) => {
   console.log('Parsing content')
   splitText = rawText.split(/\r\n|\r|\n/gi).map(line => line = "<p>" + line + "</p>").filter(line => line !== '<p></p>')
   let lineCount = splitText.length
@@ -87,5 +87,5 @@ const parsePost = (rawText, mentionsEnabled = true, hashtagsEnabled = true, urls
 }
 
 module.exports = {
-  parsePost: parsePost
+  parseText: parseText
 }
