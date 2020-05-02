@@ -408,7 +408,7 @@ app.post('/api/post', async (req, res) => {
   const isDraft = req.body.isDraft
 
   if (!user || !postContent) {
-    return res.status(500).send(sendError(500, 'Post content empty or user not found'))
+    return res.status(403).send(sendError(403, 'Post content empty or user not found'))
   }
   const parsedPayload = parseText(postContent)
 
@@ -507,7 +507,7 @@ app.post('/api/comment/:postid/:commentid?', async (req, res) => {
   const commentContent = req.body.content
 
   if (!user || !commentContent) {
-    return res.status(500).send(sendError(500, 'Comment content empty or user not found'))
+    return res.status(403).send(sendError(403, 'Comment content empty or user not found'))
   }
 
   const parsedPayload = parseText(commentContent)
@@ -534,6 +534,7 @@ app.post('/api/comment/:postid/:commentid?', async (req, res) => {
   Post.findOne({ _id: req.params.postid })
     .populate('author')
     .then(async (post) => {
+      console.log("Post", post._id)
       let postType
       let postPrivacy
       if (post.communityId) {
@@ -545,7 +546,7 @@ app.post('/api/comment/:postid/:commentid?', async (req, res) => {
       }
       let depth
       let commentParent
-      if (req.params.commentid === 'undefined') {
+      if (!req.params.commentid) {
         depth = 1
         commentParent = undefined
         // This is a top level comment with no parent (identified by commentid)
@@ -555,8 +556,10 @@ app.post('/api/comment/:postid/:commentid?', async (req, res) => {
         // until we find it
         ({ commentParent, depth } = findCommentByID(req.params.commentid, post.comments))
         if (!commentParent) {
+          console.log('Parent comment not found', req.params.commentid)
           return res.status(403).send(sendError(403, 'Parent comment not found'))
         } else if (depth > 5) {
+          console.log('Comment too deep', depth)
           return res.status(403).send(sendError(403, 'Comment too deep'))
         }
         commentParent.replies.push(comment)
