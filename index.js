@@ -213,7 +213,7 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
     // to see if there is a more recent boost.
     if (req.params.context !== 'community' && req.params.context !== 'single') {
       let isThereNewerInstance = false
-      const whosePostsCount = req.params.context === 'user' ? [new ObjectId(req.params.identifier)] : myFollowedUserIds
+      const whosePostsCount = req.params.context === 'user' ? [mongoose.Types.ObjectId(req.params.identifier)] : myFollowedUserIds
       if (post.type === 'original') {
         for (const boost of post.boostsV2) {
           if (boost.timestamp.getTime() > post.lastUpdated.getTime() && whosePostsCount.some(f => boost.booster.equals(f))) {
