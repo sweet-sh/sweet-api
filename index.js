@@ -252,7 +252,7 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
       // we don't have to check if the user is in the community before displaying posts to them if we're on the community's page, or if it's a single post page and: the community is public or the user wrote the post
       // in other words, we do have to check if the user is in the community if those things aren't true, hence the !
       if (!(req.params.context === 'community' || (req.params.context === 'single' && (post.author.equals(user) || post.community.settings.visibility === 'public')))) {
-        if (myCommunities.some(m => m.equals(post.community._id))) {
+        if (myCommunities.some(m => m !== null && m.equals(post.community._id))) {
           canDisplay = true
         } else {
           canDisplay = false
