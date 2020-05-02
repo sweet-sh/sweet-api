@@ -440,7 +440,7 @@ app.post('/api/post', async (req, res) => {
     tags: parsedPayload.tags,
     contentWarnings: contentWarning,
     imageVersion: 3,
-    inlineElements: inlineElements,
+    inlineElements: req.body.images ? inlineElements : undefined,
     subscribedUsers: [user._id]
   })
 
@@ -529,7 +529,7 @@ app.post('/api/comment/:postid/:commentid?', async (req, res) => {
     cachedHtml: { fullContentHtml: parsedPayload.text },
     mentions: parsedPayload.mentions,
     tags: parsedPayload.tags,
-    inlineElements: inlineElements
+    inlineElements: req.body.images ? inlineElements : undefined
   }
 
   Post.findOne({ _id: req.params.postid })
