@@ -45,7 +45,7 @@ const sendResponse = (data, status, message) => {
   }
 }
 
-function touchCommunity (id) {
+function touchCommunity(id) {
   Community.findOneAndUpdate({
     _id: id
   }, {
@@ -627,18 +627,18 @@ app.post('/api/comment/:postid/:commentid?', async (req, res) => {
 
 app.get('/api/communities/all', (req, res) => {
   Community.find({})
-  .sort('name')
-  .then(communities => {
-    if (!communities.length) {
-      return res.status(404).send(sendError(400, 'No communities found!'))
-    } else {
-      return res.status(200).send(sendResponse(communities, 200))
-    }
-  })
-  .catch((error) => {
-    console.error(error)
-    return res.status(500).send(sendError(403, 'Error fetching communities'))
-  })
+    .sort('name')
+    .then(communities => {
+      if (!communities.length) {
+        return res.status(404).send(sendError(404, 'No communities found!'))
+      } else {
+        return res.status(200).send(sendResponse(communities, 200))
+      }
+    })
+    .catch((error) => {
+      console.error(error)
+      return res.status(500).send(sendError(500, 'Error fetching communities'))
+    })
 })
 
 app.post('/api/community/join', async (req, res) => {
@@ -646,10 +646,10 @@ app.post('/api/community/join', async (req, res) => {
   const user = (await User.findOne({ _id: userId }))
   const community = await Community.findOne({ _id: req.body.communityId })
   if (!community || !user) {
-    return res.status(403).send(sendError(403, 'Community or user not found'))
+    return res.status(404).send(sendError(404, 'Community or user not found'))
   }
   if (community.bannedMembers.includes(user._id)) {
-    return res.status(403).send(sendError(403, 'Community or user not found'))
+    return res.status(404).send(sendError(404, 'Community or user not found'))
   }
   if (community.members.some(v => v.equals(user._id)) || user.communities.some(v => v.toString() === req.body.communityId)) {
     return res.status(406).send(sendError(406, 'User already member of community'))
@@ -667,13 +667,134 @@ app.post('/api/community/leave', async (req, res) => {
   const user = (await User.findOne({ _id: userId }))
   const community = await Community.findOne({ _id: req.body.communityId })
   if (!community || !user) {
-    return res.status(403).send(sendError(403, 'Community or user not found'))
+    return res.status(404).send(sendError(404, 'Community or user not found'))
   }
   community.members.pull(user._id)
   await community.save()
   user.communities.pull(req.body.communityId)
   await user.save()
   return res.sendStatus(200)
+})
+
+app.get('/api/user/:userid', async (req, res) => {
+  function c(e) {
+    console.error('Error in user data builders')
+    console.error(e)
+    return res.status(500).send(sendError(500, 'Error in user data builders'))
+  }
+  const userId = req.header('Authorization');
+  const user = (await User.findOne({ _id: userId }))
+  if (!user) {
+    return res.status(403).send(sendError(403, 'Not authorized'))
+  }
+  const profileData = await User.findById(req.params.userid, 'email username imageEnabled image displayName aboutParsed aboutRaw location pronouns websiteParsed websiteRaw')
+    .catch(err => {
+      return res.status(500).send(sendError(500, 'Error fetching user'))
+    })
+  if (!profileData) {
+    return res.status(404).send(sendError(404, 'User not found'))
+  }
+  const communitiesData = await Community.find({ members: profileData._id }, 'name slug url descriptionRaw descriptionParsed rulesRaw rulesParsed image imageEnabled membersCount').catch(c) // given to the renderer at the end
+  const followersArray = (await Relationship.find({ to: profileData.email, value: 'follow' }, { from: 1 }).catch(c)).map(v => v.from) // only used for the below
+  const followers = await User.find({ email: { $in: followersArray } }, 'email username imageEnabled image displayName aboutParsed aboutRaw location pronouns websiteParsed websiteRaw').catch(c) // passed directly to the renderer
+  const theirFollowedUserEmails = (await Relationship.find({ from: profileData.email, value: 'follow' }, { to: 1 }).catch(c)).map(v => v.to) // used in the below and to see if the profile user follows you
+  const theirFollowedUserData = await User.find({ email: { $in: theirFollowedUserEmails } }, 'email username imageEnabled image displayName aboutParsed aboutRaw location pronouns websiteParsed websiteRaw') // passed directly to the renderer
+  const usersWhoTrustThemArray = (await Relationship.find({ to: profileData.email, value: 'trust' }).catch(c)).map(v => v.from) // only used for the below
+  const usersWhoTrustThem = await User.find({ email: { $in: usersWhoTrustThemArray } }, 'email username imageEnabled image displayName aboutParsed aboutRaw location pronouns websiteParsed websiteRaw').catch(c) // passed directly to the renderer
+  const theirTrustedUserEmails = (await Relationship.find({ from: profileData.email, value: 'trust' }).catch(c)).map(v => v.to) // used to see if the profile user trusts the logged in user (if not isOwnProfile) and the below
+  const theirTrustedUserData = await User.find({ email: { $in: theirTrustedUserEmails } }, 'email username imageEnabled image displayName aboutParsed aboutRaw location pronouns websiteParsed websiteRaw').catch(c) // given directly to the renderer
+
+  let userFollowsYou = false
+  let userTrustsYou = false
+  let isOwnProfile
+  let flagsFromTrustedUsers
+  let flagged
+  let trusted
+  let followed
+  let muted
+  let myFlaggedUserData
+  let mutualTrusts
+  let mutualFollows
+  let mutualCommunities
+  if (user) {
+    // Is this the logged in user's own profile?
+    if (profileData.email === user.email) {
+      isOwnProfile = true
+      userTrustsYou = false
+      userFollowsYou = false
+      trusted = false
+      followed = false
+      muted = false
+      flagged = false
+      flagsFromTrustedUsers = 0
+      const myFlaggedUserEmails = (await Relationship.find({ from: user.email, value: 'flag' }).catch(c)).map(v => v.to) // only used in the below line
+      myFlaggedUserData = await User.find({ email: { $in: myFlaggedUserEmails } }).catch(c) // passed directly to the renderer, but only actually used if isOwnProfile, so we're only actually defining it in here
+    } else {
+      isOwnProfile = false
+
+      const myTrustedUserEmails = (await Relationship.find({ from: user.email, value: 'trust' }).catch(c)).map(v => v.to) // used for flag checking and to see if the logged in user trusts this user
+      const myFollowedUserEmails = (await Relationship.find({ from: user.email, value: 'follow' }).catch(c)).map(v => v.to) // Used for mutual follows notification
+      const myCommunities = await Community.find({ members: user._id }).catch(c) // Used for mutual communities notification
+
+      // Check if profile user and logged in user have mutual trusts, follows, and communities
+      mutualTrusts = usersWhoTrustThemArray.filter(user => myTrustedUserEmails.includes(user))
+      mutualFollows = followersArray.filter(user => myFollowedUserEmails.includes(user))
+      console.log(theirFollowedUserEmails)
+      console.log(mutualFollows)
+      mutualCommunities = communitiesData.filter(community1 => myCommunities.some(community2 => community1._id.equals(community2._id))).map(community => community._id)
+
+      // Check if profile user follows and/or trusts logged in user
+      userTrustsYou = theirTrustedUserEmails.includes(user.email) // not sure if these includes are faster than an indexed query of the relationships collection would be
+      userFollowsYou = theirFollowedUserEmails.includes(user.email)
+
+      // Check if logged in user follows and/or trusts and/or has muted profile user
+      trusted = myTrustedUserEmails.includes(profileData.email)
+      followed = !!(await Relationship.findOne({ from: user.email, to: profileData.email, value: 'follow' }).catch(c))
+      muted = !!(await Relationship.findOne({ from: user.email, to: profileData.email, value: 'mute' }).catch(c))
+
+      const flagsOnUser = await Relationship.find({ to: profileData.email, value: 'flag' }).catch(c)
+      flagsFromTrustedUsers = 0
+      flagged = false
+      for (const flag of flagsOnUser) {
+        // Check if logged in user has flagged profile user
+        if (flag.from === user.email) {
+          flagged = true
+        }
+        // Check if any of the logged in user's trusted users have flagged profile user
+        if (myTrustedUserEmails.includes(flag.from)) {
+          flagsFromTrustedUsers++
+        }
+      }
+    }
+  } else {
+    isOwnProfile = false
+    flagsFromTrustedUsers = 0
+    trusted = false
+    followed = false
+    flagged = false
+  }
+  const response = {
+    loggedIn: user ? true : false,
+    isOwnProfile: isOwnProfile,
+    profileData: profileData,
+    trusted: trusted,
+    flagged: flagged,
+    muted: muted,
+    followed: followed,
+    followersData: followers,
+    usersWhoTrustThemData: usersWhoTrustThem,
+    userFollowsYou: userFollowsYou,
+    userTrustsYou: userTrustsYou,
+    trustedUserData: theirTrustedUserData,
+    followedUserData: theirFollowedUserData,
+    communitiesData: communitiesData,
+    flaggedUserData: myFlaggedUserData,
+    flagsFromTrustedUsers: flagsFromTrustedUsers,
+    mutualTrusts: mutualTrusts,
+    mutualFollows: mutualFollows,
+    mutualCommunities: mutualCommunities,
+  }
+  return res.status(200).send(sendResponse(response, 200))
 })
 
 
