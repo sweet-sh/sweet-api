@@ -440,7 +440,7 @@ app.post('/api/post', async (req, res) => {
     subscribedUsers: [user._id]
   })
 
-  if (req.body.images.length) {
+  if (req.body.images) {
     req.body.images.forEach(async (filename) => {
       const image = new Image({
         // context: postType === 'community' ? 'community' : 'user',
