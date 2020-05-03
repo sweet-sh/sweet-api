@@ -105,7 +105,7 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
   // If we're looking for user posts, req.params.identifier might be a username
   // OR a MongoDB _id string. We need to work out which it is:
   let userIdentifier
-  if (context === 'user') {
+  if (req.params.context === 'user') {
     if (isObjectIdValid(req.params.identifier)) {
       userIdentifier = req.params.identifier
     } else {
