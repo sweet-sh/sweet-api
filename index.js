@@ -49,10 +49,12 @@ const sendResponse = (data, status, message) => {
 };
 
 function isObjectIdValid(string) {
-  if (!ObjectId.isValid(string) || String(new ObjectId(string)) === string) {
-    return false;
+  if (ObjectId.isValid(string)) {
+    if (String(new ObjectId(string)) === string) {
+      return true;
+    }
   }
-  return true;
+  return false;
 }
 
 function touchCommunity(id) {
