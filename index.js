@@ -88,10 +88,8 @@ app.post('/api/login', async (req, res) => {
     }
     const jwtOptions = {
       issuer: 'sweet.sh',
-      subject: user._id
     }
-
-    return res.status(200).send(sendResponse(JWT.sign(user.id, jwtOptions), 200));
+    return res.status(200).send(sendResponse(JWT.sign({ id: user._id.toString() }, jwtOptions), 200));
   });
 });
 
