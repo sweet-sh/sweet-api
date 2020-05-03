@@ -91,7 +91,7 @@ app.post('/api/login', async (req, res) => {
       subject: user._id
     }
 
-    return res.status(200).send(sendResponse(JWT.sign(user.id,), 200));
+    return res.status(200).send(sendResponse(JWT.sign(user.id, jwtOptions), 200));
   });
 });
 
