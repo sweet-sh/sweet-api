@@ -98,10 +98,19 @@ app.post('/api/login', function (req, res) {
 
 app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
   const timestamp = req.params.timestamp ? new Date(parseInt(req.params.timestamp)) : Date.now()
-  console.log(timestamp)
   const postsPerPage = 20
   const userId = req.header('Authorization');
   const user = (await User.findOne({ _id: userId }))
+
+  // If we're looking for user posts, req.params.identifier might be a username
+  // OR a MongoDB _id string. We need to work out which it is:
+  let userIdentifier
+  if (isObjectIdValid(req.params.identifier)) {
+    userIdentifier = req.params.identifier
+  } else {
+    userIdentifier = (await User.findOne({ username: req.params.identifier }))._id
+  }
+
   const myFollowedUserIds = ((await Relationship.find({ from: user.email, value: 'follow' })).map(v => v.toUser)).concat([user._id])
   const myFlaggedUserEmails = ((await Relationship.find({ from: user.email, value: 'flag' })).map(v => v.to))
   const myMutedUserEmails = ((await Relationship.find({ from: user.email, value: 'mute' })).map(v => v.to))
@@ -142,7 +151,7 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
     case 'user':
       // if we're on a user's page, obviously we want their posts:
       matchPosts = {
-        author: req.params.identifier,
+        author: userIdentifier,
         type: { $ne: 'draft' }
       }
       // but we also only want posts if they're non-community or they come from a community that we belong to:
@@ -222,7 +231,7 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
     // to see if there is a more recent boost.
     if (req.params.context !== 'community' && req.params.context !== 'single') {
       let isThereNewerInstance = false
-      const whosePostsCount = req.params.context === 'user' ? [ObjectId(req.params.identifier)] : myFollowedUserIds
+      const whosePostsCount = req.params.context === 'user' ? [ObjectId(userIdentifier)] : myFollowedUserIds
       if (post.type === 'original') {
         for (const boost of post.boostsV2) {
           if (boost.timestamp.getTime() > post.lastUpdated.getTime() && whosePostsCount.some(f => boost.booster.equals(f))) {
@@ -325,8 +334,8 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
       }
     } else {
       if (req.params.context === 'user') {
-        if (displayContext.author._id.toString() !== req.params.identifier) {
-          boostsForHeader = [(await (User.findById(req.params.identifier, 'username'))).username]
+        if (displayContext.author._id.toString() !== userIdentifier) {
+          boostsForHeader = [(await (User.findById(userIdentifier, 'username'))).username]
         }
       }
     }
