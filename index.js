@@ -105,10 +105,12 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
   // If we're looking for user posts, req.params.identifier might be a username
   // OR a MongoDB _id string. We need to work out which it is:
   let userIdentifier
-  if (isObjectIdValid(req.params.identifier)) {
-    userIdentifier = req.params.identifier
-  } else {
-    userIdentifier = (await User.findOne({ username: req.params.identifier }))._id
+  if (context === 'user') {
+    if (isObjectIdValid(req.params.identifier)) {
+      userIdentifier = req.params.identifier
+    } else {
+      userIdentifier = (await User.findOne({ username: req.params.identifier }))._id
+    }
   }
 
   const myFollowedUserIds = ((await Relationship.find({ from: user.email, value: 'follow' })).map(v => v.toUser)).concat([user._id])
