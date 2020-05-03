@@ -10,7 +10,7 @@ module.exports = {
     // Token signing options
     var signOptions = {
       issuer: _options.issuer,
-      expiresIn: "5m",    // 30 day validity
+      expiresIn: "30d",    // 30 day validity
       algorithm: "RS256"
     }
     return jwt.sign(payload, privateKey, signOptions)
@@ -18,15 +18,14 @@ module.exports = {
   verify: (token, _options) => {
     var verifyOptions = {
       issuer: _options.issuer,
-      subject: _options.subject,
-      audience: _options.audience,
-      expiresIn: "5m",
+      expiresIn: "30d",
       algorithm: ["RS256"]
     }
     try {
       return jwt.verify(token, publicKey, verifyOptions)
     } catch (error) {
-      return error
+      console.error(error)
+      return false
     }
   },
   decode: (token) => {

@@ -69,6 +69,33 @@ function touchCommunity(id) {
   });
 }
 
+app.use('/api/*', async (req, res, next) => {
+  console.log(req.originalUrl)
+  console.log(req.headers)
+  // We don't need to check headers for the login route
+  if (req.originalUrl === '/api/login') {
+    console.log('Login route, proceed')
+    return next()
+  }
+  // Immediately reject all unauthorized requests
+  if (!req.headers.authorization) {
+    console.log("JWT Token not supplied")
+    return res.status(401).send(sendError(401, 'Not authorized to access this API'))
+  }
+  let verifyResult = JWT.verify(req.headers.authorization, { issuer: 'sweet.sh' });
+  if (!verifyResult) {
+    console.log("JWT Token failed verification", req.headers.authorization)
+    return res.status(401).send(sendError(401, 'Not authorized to access this API'))
+  }
+  console.log("We all good!")
+  console.log(verifyResult)
+  req.user = (await User.findOne({ _id: verifyResult.id }));
+  if (!req.user) {
+    return res.status(404).send(sendError(404, 'No matching user registered in API'))
+  }
+  next()
+})
+
 app.post('/api/login', async (req, res) => {
   // Check if data has been submitted
   if (!req.body.email || !req.body.password) {
@@ -96,11 +123,8 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
-  console.log(req.params)
   const timestamp = req.params.timestamp ? new Date(parseInt(req.params.timestamp)) : Date.now();
   const postsPerPage = 20;
-  const userId = req.header('Authorization');
-  const user = (await User.findOne({ _id: userId }));
 
   // If we're looking for user posts, req.params.identifier might be a username
   // OR a MongoDB _id string. We need to work out which it is:
@@ -113,19 +137,19 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
     }
   }
 
-  const myFollowedUserIds = ((await Relationship.find({ from: user.email, value: 'follow' })).map(v => v.toUser)).concat([user._id]);
-  const myFlaggedUserEmails = ((await Relationship.find({ from: user.email, value: 'flag' })).map(v => v.to));
-  const myMutedUserEmails = ((await Relationship.find({ from: user.email, value: 'mute' })).map(v => v.to));
-  const myTrustedUserEmails = ((await Relationship.find({ from: user.email, value: 'trust' })).map(v => v.to));
+  const myFollowedUserIds = ((await Relationship.find({ from: req.user.email, value: 'follow' })).map(v => v.toUser)).concat([req.user._id]);
+  const myFlaggedUserEmails = ((await Relationship.find({ from: req.user.email, value: 'flag' })).map(v => v.to));
+  const myMutedUserEmails = ((await Relationship.find({ from: req.user.email, value: 'mute' })).map(v => v.to));
+  const myTrustedUserEmails = ((await Relationship.find({ from: req.user.email, value: 'trust' })).map(v => v.to));
   const usersFlaggedByMyTrustedUsers = ((await Relationship.find({ from: { $in: myTrustedUserEmails }, value: 'flag' })).map(v => v.to));
-  const usersWhoTrustMeEmails = ((await Relationship.find({ to: user.email, value: 'trust' })).map(v => v.from)).concat([user.email]);
-  const myCommunities = user.communities;
+  const usersWhoTrustMeEmails = ((await Relationship.find({ to: req.user.email, value: 'trust' })).map(v => v.from)).concat([req.user.email]);
+  const myCommunities = req.user.communities;
   if (req.params.context === 'community') {
-    isMuted = (await Community.findById(req.params.identifier)).mutedMembers.some(v => v.equals(user._id));
+    isMuted = (await Community.findById(req.params.identifier)).mutedMembers.some(v => v.equals(req.user._id));
   } else {
     isMuted = false;
   }
-  flagged = usersFlaggedByMyTrustedUsers.concat(myFlaggedUserEmails).filter(e => e !== user.email);
+  flagged = usersFlaggedByMyTrustedUsers.concat(myFlaggedUserEmails).filter(e => e !== req.user.email);
 
   let matchPosts;
   let sortMethod = '-lastUpdated';
@@ -274,7 +298,7 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
     if (post.type === 'community') {
       // we don't have to check if the user is in the community before displaying posts to them if we're on the community's page, or if it's a single post page and: the community is public or the user wrote the post
       // in other words, we do have to check if the user is in the community if those things aren't true, hence the !
-      if (!(req.params.context === 'community' || (req.params.context === 'single' && (post.author.equals(user) || post.community.settings.visibility === 'public')))) {
+      if (!(req.params.context === 'community' || (req.params.context === 'single' && (post.author.equals(req.user) || post.community.settings.visibility === 'public')))) {
         if (myCommunities.some(m => m !== null && m.equals(post.community._id))) {
           canDisplay = true;
         } else {
@@ -307,7 +331,7 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
     }
 
     // Used to check if you can delete a post
-    let isYourPost = displayContext.author._id.equals(user);
+    let isYourPost = displayContext.author._id.equals(req.user);
 
     // generate some arrays containing usernames that will be put in "boosted by" labels
     let boostsForHeader;
@@ -319,7 +343,7 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
       if (displayContext.boostsV2.length > 0) {
         displayContext.boostsV2.forEach((v, i, a) => {
           if (!(v.timestamp.getTime() === displayContext.timestamp.getTime())) { // do not include implicit boost
-            if (v.booster._id.equals(user)) {
+            if (v.booster._id.equals(req.user)) {
               followedBoosters.push('you');
               youBoosted = true;
             } else {
@@ -350,7 +374,7 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
       timestampMs: displayContext.timestamp.getTime(),
       editedTimestampMs: displayContext.lastEdited ? displayContext.lastEdited.getTime() : '',
       headerBoosters: boostsForHeader,
-      havePlused: displayContext.pluses.filter(plus => plus.author.equals(user)),
+      havePlused: displayContext.pluses.filter(plus => plus.author.equals(req.user)),
     });
 
     displayedPost.followedBoosters = followedBoosters;
@@ -383,7 +407,7 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
           comment.images[i] = '/api/image/display/' + comment.images[i];
         }
         // If the comment's author is logged in, or the displayContext's author is logged in
-        if (((comment.author._id.equals(user)) || (displayContext.author._id.equals(user))) && !comment.deleted) {
+        if (((comment.author._id.equals(req.user)) || (displayContext.author._id.equals(req.user))) && !comment.deleted) {
           comment.canDelete = true;
         }
         if (level < 5) {
@@ -404,9 +428,6 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
 });
 
 app.post('/api/plus/:postid', async (req, res) => {
-  const userId = req.header('Authorization');
-  console.log(userId);
-  const user = (await User.findOne({ _id: userId }));
   let plusAction;
   Post.findOne({
     _id: req.params.postid,
@@ -417,19 +438,19 @@ app.post('/api/plus/:postid', async (req, res) => {
     numberOfPluses: 1,
   }).populate('author')
     .then((post) => {
-      if (post.pluses.some(plus => plus.author.equals(user._id))) {
+      if (post.pluses.some(plus => plus.author.equals(req.user._id))) {
         // This post already has a plus from this user, so we're unplussing it
-        post.pluses = post.pluses.filter(plus => !plus.author.equals(user._id));
+        post.pluses = post.pluses.filter(plus => !plus.author.equals(req.user._id));
         plusAction = 'remove';
       } else {
-        post.pluses.push({ author: user._id, type: 'plus', timestamp: new Date() });
+        post.pluses.push({ author: req.user._id, type: 'plus', timestamp: new Date() });
         plusAction = 'add';
       }
       post.numberOfPluses = post.pluses.length;
       post.save().then((updatedPost) => {
         // Don't notify yourself if you plus your own posts, you weirdo
-        if (plusAction === 'add' && !post.author._id.equals(user._id)) {
-          // notifier.notify('user', 'plus', post.author._id, user._id, null, '/' + post.author.username + '/' + post.url, 'post');
+        if (plusAction === 'add' && !post.author._id.equals(req.user._id)) {
+          // notifier.notify('user', 'plus', post.author._id, req.user._id, null, '/' + post.author.username + '/' + post.url, 'post');
         }
         return res.status(200).send(sendResponse({ pluses: post.pluses, plusAction }, 200));
       });
@@ -441,9 +462,6 @@ app.post('/api/plus/:postid', async (req, res) => {
 });
 
 app.post('/api/post', async (req, res) => {
-  console.log('New post', req.body);
-  const userId = req.header('Authorization');
-  const user = (await User.findOne({ _id: userId }));
   const postContent = req.body.content;
   const {
     contentWarning,
@@ -452,8 +470,8 @@ app.post('/api/post', async (req, res) => {
     isDraft,
   } = req.body;
 
-  if (!user || !postContent) {
-    return res.status(404).send(sendError(404, 'Post content empty or user not found'));
+  if (!postContent) {
+    return res.status(404).send(sendError(404, 'Post content empty'));
   }
   const parsedPayload = parseText(postContent);
 
@@ -471,8 +489,8 @@ app.post('/api/post', async (req, res) => {
   const post = new Post({
     type: isCommunityPost ? 'community' : isDraft ? 'draft' : 'original',
     community: isCommunityPost ? req.body.communityId : undefined,
-    authorEmail: user.email,
-    author: user._id,
+    authorEmail: req.user.email,
+    author: req.user._id,
     url: newPostUrl,
     // Community posts are always public, drafts are always private, otherwise we check the privacy setting
     privacy: isCommunityPost ? 'public' : isDraft ? 'private' : isPrivate ? 'private' : 'public',
@@ -486,7 +504,7 @@ app.post('/api/post', async (req, res) => {
     contentWarnings: contentWarning,
     imageVersion: 3,
     inlineElements: req.body.images ? inlineElements : undefined,
-    subscribedUsers: [user._id],
+    subscribedUsers: [req.user._id],
   });
 
   if (req.body.images) {
@@ -496,7 +514,7 @@ app.post('/api/post', async (req, res) => {
         filename: `images/${filename}`,
         url: `https://sweet-images.s3.eu-west-2.amazonaws.com/images/${filename}`,
         privacy: isPrivate ? 'private' : 'public',
-        user: user._id,
+        user: req.user._id,
         // quality: postImageQuality,
         // height: metadata.height,
         // width: metadata.width
@@ -543,16 +561,12 @@ app.post('/api/comment/:postid/:commentid?', async (req, res) => {
     return 0;
   }
 
-  console.log('New comment', req.body);
-  const userId = req.header('Authorization');
-  const user = (await User.findOne({ _id: userId }));
-
   const commentCreationTime = new Date();
   const commentId = ObjectId();
   const commentContent = req.body.content;
 
-  if (!user || !commentContent) {
-    return res.status(404).send(sendError(404, 'Comment content empty or user not found'));
+  if (!commentContent) {
+    return res.status(404).send(sendError(404, 'Comment content empty'));
   }
 
   const parsedPayload = parseText(commentContent);
@@ -566,8 +580,8 @@ app.post('/api/comment/:postid/:commentid?', async (req, res) => {
 
   const comment = {
     _id: commentId,
-    authorEmail: user.email,
-    author: user._id,
+    authorEmail: req.user.email,
+    author: req.user._id,
     timestamp: commentCreationTime,
     rawContent: commentContent,
     parsedContent: parsedPayload.text,
@@ -618,8 +632,8 @@ app.post('/api/comment/:postid/:commentid?', async (req, res) => {
       post.cachedHTML.embedsMTime = null;
 
       // Add user to subscribed users for post
-      if ((!post.author._id.equals(user._id) && !post.subscribedUsers.includes(user._id.toString()))) { // Don't subscribe to your own post, or to a post you're already subscribed to
-        post.subscribedUsers.push(user._id.toString());
+      if ((!post.author._id.equals(req.user._id) && !post.subscribedUsers.includes(req.user._id.toString()))) { // Don't subscribe to your own post, or to a post you're already subscribed to
+        post.subscribedUsers.push(req.user._id.toString());
       }
 
       if (req.body.images) {
@@ -629,7 +643,7 @@ app.post('/api/comment/:postid/:commentid?', async (req, res) => {
             filename: 'images/' + filename,
             url: 'https://sweet-images.s3.eu-west-2.amazonaws.com/images/' + filename,
             privacy: postPrivacy,
-            user: user._id,
+            user: req.user._id,
             // quality: postImageQuality,
             // height: metadata.height,
             // width: metadata.width
@@ -667,37 +681,35 @@ app.get('/api/communities/all', (req, res) => {
 });
 
 app.post('/api/community/join', async (req, res) => {
-  const userId = req.header('Authorization');
-  const user = (await User.findOne({ _id: userId }));
-  const community = await Community.findOne({ _id: req.body.communityId });
-  if (!community || !user) {
+  const userToModify = (await User.findById(req.user._id));
+  const communityToModify = await Community.findOne({ _id: req.body.communityId });
+  if (!communityToModify || !userToModify) {
     return res.status(404).send(sendError(404, 'Community or user not found'));
   }
-  if (community.bannedMembers.includes(user._id)) {
+  if (communityToModify.bannedMembers.includes(userToModify._id)) {
     return res.status(404).send(sendError(404, 'Community or user not found'));
   }
-  if (community.members.some(v => v.equals(user._id)) || user.communities.some(v => v.toString() === req.body.communityId)) {
+  if (communityToModify.members.some(v => v.equals(userToModify._id)) || userToModify.communities.some(v => v.toString() === req.body.communityId)) {
     return res.status(406).send(sendError(406, 'User already member of community'));
   }
-  community.members.push(user._id);
-  await community.save();
+  communityToModify.members.push(userToModify._id);
+  await communityToModify.save();
   touchCommunity(req.body.communityId);
-  user.communities.push(req.params.communityId);
-  await user.save();
+  userToModify.communities.push(req.params.communityId);
+  await userToModify.save();
   return res.sendStatus(200);
 });
 
 app.post('/api/community/leave', async (req, res) => {
-  const userId = req.header('Authorization');
-  const user = (await User.findOne({ _id: userId }));
-  const community = await Community.findOne({ _id: req.body.communityId });
-  if (!community || !user) {
+  const userToModify = (await User.findById(userId));
+  const communityToModify = await Community.findOne({ _id: req.body.communityId });
+  if (!communityToModify || !userToModify) {
     return res.status(404).send(sendError(404, 'Community or user not found'));
   }
-  community.members.pull(user._id);
-  await community.save();
-  user.communities.pull(req.body.communityId);
-  await user.save();
+  communityToModify.members.pull(userToModify._id);
+  await communityToModify.save();
+  userToModify.communities.pull(req.body.communityId);
+  await userToModify.save();
   return res.sendStatus(200);
 });
 
@@ -716,11 +728,6 @@ app.get('/api/user/:identifier', async (req, res) => {
     userQuery = { username: req.params.identifier };
   }
 
-  const userId = req.header('Authorization');
-  const user = (await User.findOne({ _id: userId }));
-  if (!user) {
-    return res.status(401).send(sendError(401, 'Not authorized'));
-  }
   const profileData = await User.findOne(userQuery, 'email username imageEnabled image displayName aboutParsed aboutRaw location pronouns websiteParsed websiteRaw')
     .catch(err => {
       return res.status(500).send(sendError(500, 'Error fetching user'));
@@ -750,65 +757,57 @@ app.get('/api/user/:identifier', async (req, res) => {
   let mutualTrusts;
   let mutualFollows;
   let mutualCommunities;
-  if (user) {
-    // Is this the logged in user's own profile?
-    if (profileData.email === user.email) {
-      isOwnProfile = true;
-      userTrustsYou = false;
-      userFollowsYou = false;
-      trusted = false;
-      followed = false;
-      muted = false;
-      flagged = false;
-      flagsFromTrustedUsers = 0;
-      const myFlaggedUserEmails = (await Relationship.find({ from: user.email, value: 'flag' }).catch(c)).map(v => v.to); // only used in the below line
-      myFlaggedUserData = await User.find({ email: { $in: myFlaggedUserEmails } }).catch(c); // passed directly to the renderer, but only actually used if isOwnProfile, so we're only actually defining it in here
-    } else {
-      isOwnProfile = false;
-
-      const myTrustedUserEmails = (await Relationship.find({ from: user.email, value: 'trust' }).catch(c)).map(v => v.to); // used for flag checking and to see if the logged in user trusts this user
-      const myFollowedUserEmails = (await Relationship.find({ from: user.email, value: 'follow' }).catch(c)).map(v => v.to); // Used for mutual follows notification
-      const myCommunities = await Community.find({ members: user._id }).catch(c); // Used for mutual communities notification
-
-      // Check if profile user and logged in user have mutual trusts, follows, and communities
-      mutualTrusts = usersWhoTrustThemArray.filter(user => myTrustedUserEmails.includes(user));
-      mutualFollows = followersArray.filter(user => myFollowedUserEmails.includes(user));
-      console.log(theirFollowedUserEmails);
-      console.log(mutualFollows);
-      mutualCommunities = communitiesData.filter(community1 => myCommunities.some(community2 => community1._id.equals(community2._id))).map(community => community._id);
-
-      // Check if profile user follows and/or trusts logged in user
-      userTrustsYou = theirTrustedUserEmails.includes(user.email); // not sure if these includes are faster than an indexed query of the relationships collection would be
-      userFollowsYou = theirFollowedUserEmails.includes(user.email);
-
-      // Check if logged in user follows and/or trusts and/or has muted profile user
-      trusted = myTrustedUserEmails.includes(profileData.email);
-      followed = !!(await Relationship.findOne({ from: user.email, to: profileData.email, value: 'follow' }).catch(c));
-      muted = !!(await Relationship.findOne({ from: user.email, to: profileData.email, value: 'mute' }).catch(c));
-
-      const flagsOnUser = await Relationship.find({ to: profileData.email, value: 'flag' }).catch(c);
-      flagsFromTrustedUsers = 0;
-      flagged = false;
-      for (const flag of flagsOnUser) {
-        // Check if logged in user has flagged profile user
-        if (flag.from === user.email) {
-          flagged = true;
-        }
-        // Check if any of the logged in user's trusted users have flagged profile user
-        if (myTrustedUserEmails.includes(flag.from)) {
-          flagsFromTrustedUsers++;
-        }
-      }
-    }
-  } else {
-    isOwnProfile = false;
-    flagsFromTrustedUsers = 0;
+  // Is this the logged in user's own profile?
+  if (profileData.email === req.user.email) {
+    isOwnProfile = true;
+    userTrustsYou = false;
+    userFollowsYou = false;
     trusted = false;
     followed = false;
+    muted = false;
     flagged = false;
+    flagsFromTrustedUsers = 0;
+    const myFlaggedUserEmails = (await Relationship.find({ from: req.user.email, value: 'flag' }).catch(c)).map(v => v.to); // only used in the below line
+    myFlaggedUserData = await User.find({ email: { $in: myFlaggedUserEmails } }).catch(c); // passed directly to the renderer, but only actually used if isOwnProfile, so we're only actually defining it in here
+  } else {
+    isOwnProfile = false;
+
+    const myTrustedUserEmails = (await Relationship.find({ from: req.user.email, value: 'trust' }).catch(c)).map(v => v.to); // used for flag checking and to see if the logged in user trusts this user
+    const myFollowedUserEmails = (await Relationship.find({ from: req.user.email, value: 'follow' }).catch(c)).map(v => v.to); // Used for mutual follows notification
+    const myCommunities = await Community.find({ members: req.user._id }).catch(c); // Used for mutual communities notification
+
+    // Check if profile user and logged in user have mutual trusts, follows, and communities
+    mutualTrusts = usersWhoTrustThemArray.filter(v => myTrustedUserEmails.includes(v));
+    mutualFollows = followersArray.filter(v => myFollowedUserEmails.includes(v));
+    console.log(theirFollowedUserEmails);
+    console.log(mutualFollows);
+    mutualCommunities = communitiesData.filter(community1 => myCommunities.some(community2 => community1._id.equals(community2._id))).map(community => community._id);
+
+    // Check if profile user follows and/or trusts logged in user
+    userTrustsYou = theirTrustedUserEmails.includes(req.user.email); // not sure if these includes are faster than an indexed query of the relationships collection would be
+    userFollowsYou = theirFollowedUserEmails.includes(req.user.email);
+
+    // Check if logged in user follows and/or trusts and/or has muted profile user
+    trusted = myTrustedUserEmails.includes(profileData.email);
+    followed = !!(await Relationship.findOne({ from: req.user.email, to: profileData.email, value: 'follow' }).catch(c));
+    muted = !!(await Relationship.findOne({ from: req.user.email, to: profileData.email, value: 'mute' }).catch(c));
+
+    const flagsOnUser = await Relationship.find({ to: profileData.email, value: 'flag' }).catch(c);
+    flagsFromTrustedUsers = 0;
+    flagged = false;
+    for (const flag of flagsOnUser) {
+      // Check if logged in user has flagged profile user
+      if (flag.from === req.user.email) {
+        flagged = true;
+      }
+      // Check if any of the logged in user's trusted users have flagged profile user
+      if (myTrustedUserEmails.includes(flag.from)) {
+        flagsFromTrustedUsers++;
+      }
+    }
   }
   const response = {
-    loggedIn: user ? true : false,
+    loggedIn: req.user ? true : false,
     isOwnProfile,
     profileData,
     trusted,
@@ -832,13 +831,7 @@ app.get('/api/user/:identifier', async (req, res) => {
 });
 
 app.post('/api/relationship', async (req, res) => {
-  console.log(req.body);
-  const userId = req.header('Authorization');
-  const user = (await User.findById(userId));
-  if (!user) {
-    return res.status(401).send(sendError(401, 'Not authorized'));
-  }
-  if (req.body.fromId !== user._id.toString()) {
+  if (req.body.fromId !== req.user._id.toString()) {
     return res.status(401).send(sendError(401, 'From user does not match authorized user'));
   }
   const fromUser = user;
