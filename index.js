@@ -20,6 +20,7 @@ app.use(bodyParser())
 const configDatabase = require('./database.js')
 const mongoose = require('mongoose')
 mongoose.connect(configDatabase.url, { useNewUrlParser: true })
+const ObjectId = mongoose.Types.ObjectId;
 const User = require('./models/user')
 const Relationship = require('./models/relationship')
 const Post = require('./models/post')
@@ -42,6 +43,18 @@ const sendResponse = (data, status, message) => {
     data: data,
     message: message,
     status: status
+  }
+}
+
+function isObjectIdValid(string) {
+  if (ObjectId.isValid(string)) {
+    if (String(new ObjectId(string)) === string) {
+      return true
+    } else {
+      return false
+    }
+  } else {
+    return false
   }
 }
 
@@ -81,10 +94,6 @@ app.post('/api/login', function (req, res) {
       console.error(error)
       return res.status(401).send(sendError(401, "User not authenticated"))
     })
-})
-
-app.get('/api/post/:postid', async (req, res) => {
-
 })
 
 app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
@@ -213,7 +222,7 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
     // to see if there is a more recent boost.
     if (req.params.context !== 'community' && req.params.context !== 'single') {
       let isThereNewerInstance = false
-      const whosePostsCount = req.params.context === 'user' ? [mongoose.Types.ObjectId(req.params.identifier)] : myFollowedUserIds
+      const whosePostsCount = req.params.context === 'user' ? [ObjectId(req.params.identifier)] : myFollowedUserIds
       if (post.type === 'original') {
         for (const boost of post.boostsV2) {
           if (boost.timestamp.getTime() > post.lastUpdated.getTime() && whosePostsCount.some(f => boost.booster.equals(f))) {
@@ -523,7 +532,7 @@ app.post('/api/comment/:postid/:commentid?', async (req, res) => {
   const user = (await User.findOne({ _id: userId }))
 
   const commentCreationTime = new Date()
-  const commentId = mongoose.Types.ObjectId()
+  const commentId = ObjectId()
   const commentContent = req.body.content
 
   if (!user || !commentContent) {
@@ -676,18 +685,27 @@ app.post('/api/community/leave', async (req, res) => {
   return res.sendStatus(200)
 })
 
-app.get('/api/user/:userid', async (req, res) => {
+app.get('/api/user/:identifier', async (req, res) => {
   function c(e) {
     console.error('Error in user data builders')
     console.error(e)
     return res.status(500).send(sendError(500, 'Error in user data builders'))
   }
+  // req.params.identifier might be a username OR a MongoDB _id string. We need to work
+  // out which it is:
+  let userQuery
+  if (isObjectIdValid(req.params.identifier)) {
+    userQuery = { _id: req.params.identifier }
+  } else {
+    userQuery = { username: req.params.identifier }
+  }
+
   const userId = req.header('Authorization');
   const user = (await User.findOne({ _id: userId }))
   if (!user) {
     return res.status(403).send(sendError(403, 'Not authorized'))
   }
-  const profileData = await User.findById(req.params.userid, 'email username imageEnabled image displayName aboutParsed aboutRaw location pronouns websiteParsed websiteRaw')
+  const profileData = await User.findOne(userQuery, 'email username imageEnabled image displayName aboutParsed aboutRaw location pronouns websiteParsed websiteRaw')
     .catch(err => {
       return res.status(500).send(sendError(500, 'Error fetching user'))
     })
@@ -795,6 +813,55 @@ app.get('/api/user/:userid', async (req, res) => {
     mutualCommunities: mutualCommunities,
   }
   return res.status(200).send(sendResponse(response, 200))
+})
+
+app.post('/api/relationship', async (req, res) => {
+  console.log(req.body)
+  const userId = req.header('Authorization');
+  const user = (await User.findById(userId))
+  if (!user) {
+    return res.status(403).send(sendError(403, 'Not authorized'))
+  }
+  if (req.body.fromId !== user._id.toString()) {
+    return res.status(403).send(sendError(403, 'From user does not match authorized user'))
+  }
+  const fromUser = user
+  const toUser = (await User.findById(req.body.toId))
+  if (!toUser) {
+    return res.status(404).send(sendError(404, 'To user not found'))
+  }
+  switch (req.body.action) {
+    case 'add':
+      const relationship = new Relationship({
+        from: fromUser.email,
+        to: toUser.email,
+        fromUser: fromUser._id,
+        toUser: toUser._id,
+        value: req.body.type
+      })
+      relationship.save()
+        .then(() => {
+          // Notification code here!
+          return res.sendStatus(200)
+        })
+        .catch(error => {
+          console.error(error)
+          return res.status(500).send(sendError(500, 'Error adding relationship'))
+        })
+    case 'remove':
+      Relationship.findOneAndRemove({
+        fromUser: fromUser._id,
+        toUser: toUser._id,
+        value: req.body.type
+      })
+        .then(() => {
+          return res.sendStatus(200)
+        })
+        .catch(() => {
+          console.error(error)
+          return res.status(500).send(sendError(500, 'Error removing relationship'))
+        })
+  }
 })
 
 
