@@ -94,6 +94,7 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
+  console.log(req.body)
   const timestamp = req.params.timestamp ? new Date(parseInt(req.params.timestamp)) : Date.now();
   const postsPerPage = 20;
   const userId = req.header('Authorization');
