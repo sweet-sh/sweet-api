@@ -86,7 +86,12 @@ app.post('/api/login', async (req, res) => {
     if (!result) {
       return res.status(401).send(sendError(401, 'User not authenticated'));
     }
-    return res.status(200).send(sendResponse(JWT.sign(user.id), 200));
+    const jwtOptions = {
+      issuer: 'sweet.sh',
+      subject: user._id
+    }
+
+    return res.status(200).send(sendResponse(JWT.sign(user.id,), 200));
   });
 });
 

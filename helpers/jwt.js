@@ -11,7 +11,6 @@ module.exports = {
     var signOptions = {
       issuer: _options.issuer,
       subject: _options.subject,
-      audience: _options.audience,
       expiresIn: "5m",    // 30 day validity
       algorithm: "RS256"
     }
