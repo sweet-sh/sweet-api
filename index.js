@@ -685,7 +685,7 @@ app.get('/api/communities/:communityid', (req, res) => {
   Community.findById(req.params.communityid)
     .then(community => {
       console.log(community)
-      if (!community.length) {
+      if (!community) {
         return res.status(404).send(sendError(404, 'Community not found!'));
       } else {
         return res.status(200).send(sendResponse(community, 200));
