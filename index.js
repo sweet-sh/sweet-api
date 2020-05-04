@@ -680,6 +680,21 @@ app.get('/api/communities/all', (req, res) => {
     });
 });
 
+app.get('/api/communities/:communityid', (req, res) => {
+  Community.findById(req.params.communityid)
+    .then(community => {
+      if (!community.length) {
+        return res.status(404).send(sendError(404, 'Community not found!'));
+      } else {
+        return res.status(200).send(sendResponse(community, 200));
+      }
+    })
+    .catch((error) => {
+      console.error(error);
+      return res.status(500).send(sendError(500, 'Error fetching community'));
+    });
+});
+
 app.post('/api/community/join', async (req, res) => {
   const userToModify = (await User.findById(req.user._id));
   const communityToModify = await Community.findOne({ _id: req.body.communityId });
@@ -695,7 +710,7 @@ app.post('/api/community/join', async (req, res) => {
   communityToModify.members.push(userToModify._id);
   await communityToModify.save();
   touchCommunity(req.body.communityId);
-  userToModify.communities.push(req.params.communityId);
+  userToModify.communities.push(req.body.communityId);
   await userToModify.save();
   return res.sendStatus(200);
 });
@@ -703,6 +718,7 @@ app.post('/api/community/join', async (req, res) => {
 app.post('/api/community/leave', async (req, res) => {
   const userToModify = (await User.findById(userId));
   const communityToModify = await Community.findOne({ _id: req.body.communityId });
+  console.log(userToModify, communityToModify)
   if (!communityToModify || !userToModify) {
     return res.status(404).send(sendError(404, 'Community or user not found'));
   }
