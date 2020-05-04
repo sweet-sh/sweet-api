@@ -6,6 +6,8 @@ const bodyParser = require('body-parser');
 const bcrypt = require('bcrypt');
 const { nanoid } = require('nanoid');
 const { parseText } = require('./helpers/parseText');
+const { verifyPushToken, handlePushTokens } = require('./helpers/expoNotifications');
+// const { Expo } = require('expo-server-sdk')
 
 // JWT
 const JWT = require('./helpers/jwt');
@@ -94,6 +96,22 @@ app.use('/api/*', async (req, res, next) => {
     return res.status(404).send(sendError(404, 'No matching user registered in API'))
   }
   next()
+})
+
+app.post('/api/expo_token/register', async (req, res) => {
+  if (!req.body.token) {
+    return res.status(400).send(sendError(400, 'No token submitted'));
+  }
+  if (!verifyPushToken(req.body.token)){
+    return res.status(400).send(sendError(400, 'Token invalid'));
+  }
+  req.user.expoPushTokens.push(req.body.token);
+  await req.user.save()
+    .catch(error => {
+      console.error(error);
+      return res.status(500).send(sendError(500, 'Error saving push token to database'));
+    })
+  return res.sendStatus(200);
 })
 
 app.post('/api/login', async (req, res) => {
