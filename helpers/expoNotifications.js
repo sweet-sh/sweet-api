@@ -1,3 +1,4 @@
+const fs = require('fs');
 const { Expo } = require('expo-server-sdk');
 const expo = new Expo();
 
@@ -9,14 +10,13 @@ module.exports = {
     }
     return true;
   },
-  handlePushTokens: ({ title, body }) => {
+  sendExpoNotifications: ({ pushTokens, title, body }) => {
     let notifications = [];
-    for (let pushToken of savedPushTokens) {
+    for (let pushToken of pushTokens) {
       if (!Expo.isExpoPushToken(pushToken)) {
         console.error(`Push token ${pushToken} is not a valid Expo push token`);
         continue;
       }
-
       notifications.push({
         to: pushToken,
         sound: "default",
@@ -33,6 +33,9 @@ module.exports = {
         try {
           let receipts = await expo.sendPushNotificationsAsync(chunk);
           console.log(receipts);
+          fs.writeFile('./exporeceipts.log', receipts, (response) => {
+            console.log('Write callback response:', response)
+          });
         } catch (error) {
           console.error(error);
         }

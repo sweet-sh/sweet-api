@@ -6,8 +6,7 @@ const bodyParser = require('body-parser');
 const bcrypt = require('bcrypt');
 const { nanoid } = require('nanoid');
 const { parseText } = require('./helpers/parseText');
-const { verifyPushToken, handlePushTokens } = require('./helpers/expoNotifications');
-// const { Expo } = require('expo-server-sdk')
+const { verifyPushToken } = require('./helpers/expoNotifications');
 
 // JWT
 const JWT = require('./helpers/jwt');
@@ -32,6 +31,9 @@ require('./models/tag');
 const Community = require('./models/community');
 require('./models/vote');
 const Image = require('./models/image');
+
+const notifier = require('./helpers/notifier')
+const { commentNotifier } = require('./helpers/commentNotifier')
 
 const sendError = (status, message) => {
   return {
@@ -99,10 +101,11 @@ app.use('/api/*', async (req, res, next) => {
 })
 
 app.post('/api/expo_token/register', async (req, res) => {
+  console.log('Registering Expo token!', req.body.token)
   if (!req.body.token) {
     return res.status(400).send(sendError(400, 'No token submitted'));
   }
-  if (!verifyPushToken(req.body.token)){
+  if (!verifyPushToken(req.body.token)) {
     return res.status(400).send(sendError(400, 'Token invalid'));
   }
   req.user.expoPushTokens.push(req.body.token);
@@ -111,6 +114,7 @@ app.post('/api/expo_token/register', async (req, res) => {
       console.error(error);
       return res.status(500).send(sendError(500, 'Error saving push token to database'));
     })
+  console.log('Registered!')
   return res.sendStatus(200);
 })
 
@@ -442,6 +446,7 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
     // wow, finally.
     displayedPosts.push(displayedPost);
   }
+  console.log(displayedPosts.forEach((p, i) => console.log("Index:", i, "; content:", p.parsedContent)))
   return res.status(200).send(sendResponse(displayedPosts, 200));
 });
 
@@ -468,7 +473,15 @@ app.post('/api/plus/:postid', async (req, res) => {
       post.save().then((updatedPost) => {
         // Don't notify yourself if you plus your own posts, you weirdo
         if (plusAction === 'add' && !post.author._id.equals(req.user._id)) {
-          // notifier.notify('user', 'plus', post.author._id, req.user._id, null, '/' + post.author.username + '/' + post.url, 'post');
+          notifier.notify({
+            type: 'user',
+            cause: 'plus',
+            notifieeID: post.author._id,
+            sourceId: req.user._id,
+            subjectId: null,
+            url: '/' + post.author.username + '/' + post.url,
+            context: 'post',
+          })
         }
         return res.status(200).send(sendResponse({ pluses: post.pluses, plusAction }, 200));
       });
@@ -533,6 +546,7 @@ app.post('/api/post', async (req, res) => {
         url: `https://sweet-images.s3.eu-west-2.amazonaws.com/images/${filename}`,
         privacy: isPrivate ? 'private' : 'public',
         user: req.user._id,
+        // DEBUG: NOT YET ENABLED
         // quality: postImageQuality,
         // height: metadata.height,
         // width: metadata.width
@@ -541,9 +555,67 @@ app.post('/api/post', async (req, res) => {
     });
   }
 
+  const newPostId = post._id
+
+  for (const mention of parsedPayload.mentions) {
+    if (mention !== req.user.username) {
+      User.findOne({ username: mention }).then(async mentioned => {
+        if (isCommunityPost) {
+          if (mentioned.communities.some(v => v.equals(post.community))) {
+            notifier.notify({
+              type: 'user',
+              cause: 'mention',
+              notifieeID: mentioned._id,
+              sourceId: req.user._id,
+              subjectId: newPostId,
+              url: '/' + req.user.username + '/' + newPostUrl,
+              context: 'post',
+            })
+          }
+        } else if (req.body.postPrivacy === 'private') {
+          if (await Relationship.findOne({ value: 'trust', fromUser: req.user._id, toUser: mentioned._id })) {
+            notifier.notify({
+              type: 'user',
+              cause: 'mention',
+              notifieeID: mentioned._id,
+              sourceId: req.user._id,
+              subjectId: newPostId,
+              url: '/' + req.user.username + '/' + newPostUrl,
+              context: 'post',
+            })
+          }
+        } else {
+          notifier.notify({
+            type: 'user',
+            cause: 'mention',
+            notifieeID: mentioned._id,
+            sourceId: req.user._id,
+            subjectId: newPostId,
+            url: '/' + req.user.username + '/' + newPostUrl,
+            context: 'post',
+          })
+        }
+      })
+    }
+  }
+
+  for (const tag of parsedPayload.tags) {
+    Tag.findOneAndUpdate(
+      { name: tag },
+      { $push: { posts: newPostId.toString() }, $set: { lastUpdated: postCreationTime } },
+      { upsert: true, new: true },
+      () => { }
+    )
+  }
+
+  if (isCommunityPost) {
+    Community.findOneAndUpdate({ _id: req.body.communityId }, { $set: { lastUpdated: new Date() } })
+  }
+
   await post.save()
     .then((response) => {
       console.log('New post posted!');
+      console.log(response)
       return res.status(200).send(sendResponse(response, 200));
     });
 });
@@ -662,6 +734,7 @@ app.post('/api/comment/:postid/:commentid?', async (req, res) => {
             url: 'https://sweet-images.s3.eu-west-2.amazonaws.com/images/' + filename,
             privacy: postPrivacy,
             user: req.user._id,
+            // DEBUG: NOT ENABLED
             // quality: postImageQuality,
             // height: metadata.height,
             // width: metadata.width
@@ -672,7 +745,13 @@ app.post('/api/comment/:postid/:commentid?', async (req, res) => {
 
       post.save()
         .then(async () => {
-          // Notification code would go here
+          commentNotifier({
+            post: post,
+            postAuthor: post.author,
+            postPrivacy: postPrivacy,
+            commentAuthor: req.user,
+            parsedPayload: parsedPayload,
+          });
           return res.status(200).send(sendResponse(post, 200));
         });
     })
@@ -736,7 +815,7 @@ app.post('/api/community/join', async (req, res) => {
 });
 
 app.post('/api/community/leave', async (req, res) => {
-  const userToModify = (await User.findById(userId));
+  const userToModify = req.user;
   const communityToModify = await Community.findOne({ _id: req.body.communityId });
   console.log(userToModify, communityToModify)
   if (!communityToModify || !userToModify) {
@@ -748,6 +827,35 @@ app.post('/api/community/leave', async (req, res) => {
   await userToModify.save();
   return res.sendStatus(200);
 });
+
+app.get('/api/users/:sortorder', async (req, res) => {
+  function c(e) {
+    console.error('Error in user data builders');
+    console.error(e);
+    return res.status(500).send(sendError(500, 'Error fetching users'));
+  }
+  let sortOrder;
+  switch (req.params.sortorder) {
+    case 'asc_username':
+      sortOrder = '-username';
+      break;
+    case 'desc_username':
+      sortOrder = 'username';
+      break;
+    case 'desc_updated':
+      sortOrder = '-lastUpdated';
+      break;
+    case 'asc_updated':
+      sortOrder = 'lastUpdated';
+      break;
+    default: 
+      sortOrder = '-username';
+      break;
+  }
+  const myRelationships = (await Relationship.find({ fromUser: req.user._id, value: { $in: ['follow', 'trust'] } }).catch(c)).map(v => v.toUser)
+  const myUsers = (await User.find({ _id: { $in: myRelationships } }, 'email username imageEnabled image displayName aboutParsed aboutRaw location pronouns websiteParsed websiteRaw').sort(sortOrder).catch(c))
+  return res.status(200).send(sendResponse(myUsers, 200))
+})
 
 app.get('/api/user/:identifier', async (req, res) => {
   function c(e) {
@@ -764,7 +872,7 @@ app.get('/api/user/:identifier', async (req, res) => {
     userQuery = { username: req.params.identifier };
   }
 
-  const profileData = await User.findOne(userQuery, 'email username imageEnabled image displayName aboutParsed aboutRaw location pronouns websiteParsed websiteRaw')
+  const profileData = await User.findOne(userQuery, 'email username imageEnabled image displayName aboutParsed aboutRaw location pronouns websiteParsed websiteRaw settings')
     .catch(err => {
       return res.status(500).send(sendError(500, 'Error fetching user'));
     });
@@ -870,7 +978,7 @@ app.post('/api/relationship', async (req, res) => {
   if (req.body.fromId !== req.user._id.toString()) {
     return res.status(401).send(sendError(401, 'From user does not match authorized user'));
   }
-  const fromUser = user;
+  const fromUser = req.user;
   const toUser = (await User.findById(req.body.toId));
   if (!toUser) {
     return res.status(404).send(sendError(404, 'To user not found'));
@@ -886,7 +994,18 @@ app.post('/api/relationship', async (req, res) => {
       });
       relationship.save()
         .then(() => {
-          // Notification code here!
+          // Do not notify when users are flagged, muted, or blocked (blocking not currently implemented)
+          if (req.body.type !== 'block' && req.body.type !== 'flag' && req.body.type !== 'mute') {
+            notifier.notify({
+              type: 'user',
+              cause: 'relationship',
+              notifieeID: toUser._id,
+              sourceId: fromUser._id,
+              subjectId: fromUser._id,
+              url: '/' + fromUser.username,
+              context: req.body.type,
+            })
+          }
           return res.sendStatus(200);
         })
         .catch(error => {
@@ -907,6 +1026,22 @@ app.post('/api/relationship', async (req, res) => {
           return res.status(500).send(sendError(500, 'Error removing relationship'));
         });
   }
+});
+
+app.post('/api/settings', (req, res) => {
+  const newSettings = req.body;
+  if (!newSettings) {
+    return res.status(406).send(sendError(406, 'No new settings provided'));
+  }
+  req.user.settings = { ...req.user.settings, ...req.body }
+  req.user.save()
+    .then(user => {
+      return res.status(200).send(sendResponse(user, 200))
+    })
+    .catch(error => {
+      console.log(error);
+      return res.status(500).send(sendError(500, 'Error saving new settings'));
+    })
 });
 
 
