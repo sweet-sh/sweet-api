@@ -219,6 +219,7 @@ app.post('/api/login', async (req, res) => {
     console.log("No user found")
     return res.status(401).send(sendError(401, 'User not authenticated'));
   }
+  console.log(user)
   if (!user.isVerified) {
     console.log("User not verified")
     return res.status(401).send(sendError(401, 'This account has not been verified.'));
