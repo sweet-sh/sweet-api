@@ -78,6 +78,7 @@ commentSchema.add({ replies: [commentSchema] })
 
 const boostSchema = new mongoose.Schema({
   booster: { type: DBReference, ref: 'User', required: true },
+  community: { type: DBReference, ref: 'Community' },
   timestamp: { type: Date, required: true },
   boost: { type: DBReference, ref: 'Post' }
 })
