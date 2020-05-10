@@ -212,6 +212,10 @@ app.post('/api/login', async (req, res) => {
     return res.status(401).send(sendError(401, 'User not authenticated'));
   }
   const user = await User.findOne({ email: req.body.email })
+    .then(response => {
+      console.log("DB response")
+      console.log(response)
+    })
     .catch(error => {
       console.error(error);
       return res.status(401).send(sendError(401, 'User not authenticated'));
