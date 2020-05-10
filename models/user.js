@@ -1,4 +1,3 @@
-const bcrypt = require('bcrypt-nodejs')
 const mongoose = require('mongoose')
 const DBReference = mongoose.Schema.Types.ObjectId
 
@@ -85,17 +84,6 @@ userSchema.pre('validate', function (next) {
   }
   next()
 });
-
-// methods ======================
-// generating a hash
-userSchema.methods.generateHash = function (password) {
-  return bcrypt.hashSync(password, bcrypt.genSaltSync(8), null)
-}
-
-// checking if password is valid
-userSchema.methods.validPassword = function (password) {
-  return bcrypt.compareSync(password, this.password)
-}
 
 userSchema.index({ username: 1 })
 
