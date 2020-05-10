@@ -23,21 +23,21 @@ app.use((req, res, next) => {
 // Nodemailer
 const nodemailer = require('nodemailer');
 const transporter = nodemailer.createTransport({
-	host: process.env.EMAIL_SERVER,
-	port: 587,
-	secure: false, // upgrade later with STARTTLS
-	auth: {
-		user: process.env.EMAIL_USERNAME,
-		pass: process.env.EMAIL_PASSWORD
-	}
+  host: process.env.EMAIL_SERVER,
+  port: 587,
+  secure: false, // upgrade later with STARTTLS
+  auth: {
+    user: process.env.EMAIL_USERNAME,
+    pass: process.env.EMAIL_PASSWORD
+  }
 });
-transporter.verify(function(error, success) {
-	if (error) {
-		console.log("Email server error!")
-		console.log(error); 
-	} else {
-		console.log("Email server is ready to take our messages");
-	}
+transporter.verify(function (error, success) {
+  if (error) {
+    console.log("Email server error!")
+    console.log(error);
+  } else {
+    console.log("Email server is ready to take our messages");
+  }
 });
 
 app.use(bodyParser());
@@ -98,7 +98,7 @@ function touchCommunity(id) {
 async function hashPassword(password) {
   const saltRounds = 10;
   const hashedPassword = await new Promise((resolve, reject) => {
-    bcrypt.hash(password, saltRounds, function(err, hash) {
+    bcrypt.hash(password, saltRounds, function (err, hash) {
       if (err) reject(err)
       resolve(hash)
     });
@@ -193,9 +193,9 @@ app.post('/api/register', async (req, res) => {
     to: req.body.email,
     subject: "Sweet - New user verification",
     text: 'Hi! You are receiving this because you have created a new account on sweet with this email.\n\n' +
-    'Please click on the following link, or paste it into your browser, to verify your email:\n\n' +
-    'https://sweet.sh/verify-email/' + verificationToken + '\n\n' +
-    'If you did not create an account on sweet, please ignore and delete this email. The token will expire in an hour.\n'
+      'Please click on the following link, or paste it into your browser, to verify your email:\n\n' +
+      'https://sweet.sh/verify-email/' + verificationToken + '\n\n' +
+      'If you did not create an account on sweet, please ignore and delete this email. The token will expire in an hour.\n'
   });
   if (!savedUser || !savedFollow || !sentEmail) {
     return res.status(500).send(sendError(500, 'There has been a problem processing your registration.'));
@@ -211,36 +211,35 @@ app.post('/api/login', async (req, res) => {
     console.log("Login data missing")
     return res.status(401).send(sendError(401, 'User not authenticated'));
   }
-  const user = await User.findOne({ email: req.body.email })
-    .then(response => {
-      console.log("DB response")
-      console.log(response)
+  User.find({ email: req.body.email })
+    .then((user) => {
+      console.log("DB response", user)
+      // If no user found
+      if (!user) {
+        console.log("No user found")
+        return res.status(401).send(sendError(401, 'User not authenticated'));
+      }
+      console.log(user)
+      if (!user.isVerified) {
+        console.log("User not verified")
+        return res.status(401).send(sendError(401, 'This account has not been verified.'));
+      }
+      // Compare submitted password to database hash
+      bcrypt.compare(req.body.password, user.password, (err, result) => {
+        if (!result) {
+          console.log("Password verification failed")
+          return res.status(401).send(sendError(401, 'User not authenticated'));
+        }
+        const jwtOptions = {
+          issuer: 'sweet.sh',
+        }
+        return res.status(200).send(sendResponse(JWT.sign({ id: user._id.toString() }, jwtOptions), 200));
+      });
     })
     .catch(error => {
       console.error(error);
       return res.status(401).send(sendError(401, 'User not authenticated'));
     });
-  // If no user found
-  if (!user) {
-    console.log("No user found")
-    return res.status(401).send(sendError(401, 'User not authenticated'));
-  }
-  console.log(user)
-  if (!user.isVerified) {
-    console.log("User not verified")
-    return res.status(401).send(sendError(401, 'This account has not been verified.'));
-  }
-  // Compare submitted password to database hash
-  bcrypt.compare(req.body.password, user.password, (err, result) => {
-    if (!result) {
-      console.log("Password verification failed")
-      return res.status(401).send(sendError(401, 'User not authenticated'));
-    }
-    const jwtOptions = {
-      issuer: 'sweet.sh',
-    }
-    return res.status(200).send(sendResponse(JWT.sign({ id: user._id.toString() }, jwtOptions), 200));
-  });
 });
 
 app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
