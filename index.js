@@ -204,12 +204,13 @@ app.post('/api/register', async (req, res) => {
 });
 
 app.post('/api/login', async (req, res) => {
+  console.log(req.body)
   // Check if data has been submitted
   if (!req.body.email || !req.body.password) {
     console.log("Login data missing")
     return res.status(401).send(sendError(401, 'User not authenticated'));
   }
-  const user = await (User.findOne({ email: req.body.email }))
+  const user = await User.findOne({ email: req.body.email })
     .catch(error => {
       console.error(error);
       return res.status(401).send(sendError(401, 'User not authenticated'));
