@@ -206,6 +206,7 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   // Check if data has been submitted
   if (!req.body.email || !req.body.password) {
+    console.log("Login data missing")
     return res.status(401).send(sendError(401, 'User not authenticated'));
   }
   const user = await (User.findOne({ email: req.body.email }))
@@ -215,11 +216,17 @@ app.post('/api/login', async (req, res) => {
     });
   // If no user found
   if (!user) {
+    console.log("No user found")
     return res.status(401).send(sendError(401, 'User not authenticated'));
+  }
+  if (!user.isVerified) {
+    console.log("User not verified")
+    return res.status(401).send(sendError(401, 'This account has not been verified.'));
   }
   // Compare submitted password to database hash
   bcrypt.compare(req.body.password, user.password, (err, result) => {
     if (!result) {
+      console.log("Password verification failed")
       return res.status(401).send(sendError(401, 'User not authenticated'));
     }
     const jwtOptions = {
