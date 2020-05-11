@@ -396,8 +396,8 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
           }
         }
       } else if (post.type === 'boost') {
-        console.log("A boost!", post.boostTarget.rawContent)
         if (post.boostTarget !== null) {
+          console.log("A boost!", post.boostTarget.rawContent)
           if (post.boostTarget.lastUpdated.getTime() > post.timestamp.getTime()) {
             console.log("Got newer OG post!", post.boostTarget.rawContent)
             isThereNewerInstance = true;
