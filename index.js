@@ -466,6 +466,7 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
       displayContext.community = await Community.findById(post.community, 'name slug url imageEnabled image mutedMembers settings');
       for (const boost of displayContext.boostsV2) {
         boost.booster = await User.findById(boost.booster, 'username imageEnabled image displayName');
+        boost.community = await Community.findById(boost.community, 'name slug url imageEnabled image mutedMembers settings');
       }
       displayContext.type = "boost"
 
