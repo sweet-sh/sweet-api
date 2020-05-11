@@ -375,6 +375,7 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
   }
 
   for (const post of posts) {
+    console.log('Processing', post._id)
     // figure out if there is a newer instance of the post we're looking at. if it's an original post, check the boosts from
     // the context's relevant users; if it's a boost, check the original post if we're in fluid mode to see if lastUpdated is more
     // recent (meaning the original was bumped up from recieving a comment) and then for both fluid and chronological we have to check
