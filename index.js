@@ -1062,7 +1062,7 @@ app.get('/api/user/:identifier', async (req, res) => {
     userQuery = { username: req.params.identifier };
   }
 
-  const profileData = await User.findOne(userQuery, 'email username imageEnabled image displayName aboutParsed aboutRaw location pronouns websiteParsed websiteRaw settings')
+  const profileData = await User.findOne(userQuery, 'email username imageEnabled image displayName aboutParsed aboutRaw location pronouns websiteParsed websiteRaw settings acceptedCodeOfConduct')
     .catch(err => {
       return res.status(500).send(sendError(500, 'Error fetching user'));
     });
@@ -1102,7 +1102,7 @@ app.get('/api/user/:identifier', async (req, res) => {
     flagged = false;
     flagsFromTrustedUsers = 0;
     const myFlaggedUserEmails = (await Relationship.find({ from: req.user.email, value: 'flag' }).catch(c)).map(v => v.to); // only used in the below line
-    myFlaggedUserData = await User.find({ email: { $in: myFlaggedUserEmails } }).catch(c); // passed directly to the renderer, but only actually used if isOwnProfile, so we're only actually defining it in here
+    myFlaggedUserData = await User.find({ email: { $in: myFlaggedUserEmails } }, 'email username imageEnabled image displayName aboutParsed aboutRaw location pronouns websiteParsed websiteRaw settings').catch(c); // passed directly to the renderer, but only actually used if isOwnProfile, so we're only actually defining it in here
   } else {
     isOwnProfile = false;
 
@@ -1232,6 +1232,30 @@ app.post('/api/settings', (req, res) => {
     })
 });
 
+app.post('/api/report', async (req, res) => {
+  const reportedPost = Post.findById(req.body.postid);
+  if (!reportedPost) {
+    return res.status(404).send(sendError(404, 'Post not found.'));
+  }
+  return res.sendStatus(200);
+});
+
+app.get('/api/code-of-conduct', async (req, res) => {
+  if (req.user.acceptedCodeOfConduct) {
+    return res.status(200).send(sendResponse({acceptanceStatus: true}, 200));
+  } else {
+    const codeOfConductText = '<p><strong>Sweet is dedicated to providing a harassment-free experience for everyone. We do not tolerate harassment of participants in any form.</strong></p><p><strong>You must read and accept this code of conduct to use the Sweet app and website.</strong></p><p>This code of conduct applies to all Sweet spaces, including public channels, private channels and direct messages, both online and off. Anyone who violates this code of conduct may be sanctioned or expelled from these spaces at the discretion of the administrators.</p><p>Members under 18 are allowed, but are asked to stay out of channels with adult imagery.</p><p>Some Sweet spaces, such as Communities, may have additional rules in place, which will be made clearly available to participants. Participants are responsible for knowing and abiding by these rules. This code of conduct holds priority in any disputes over rulings.</p><h4 id="types-of-harassment">Types of Harassment</h4><ul> <li>Offensive comments related to gender, gender identity and expression, sexual orientation, disability, mental illness, neuro(a)typicality, physical appearance, body size, race, immigration status, religion, or other identity marker. This includes anti-Indigenous/Nativeness and anti-Blackness.</li> <li>Unwelcome comments regarding a person’s lifestyle choices and practices, including those related to food, health, parenting, drugs, and employment.</li> <li>Deliberate misgendering or use of “dead” or rejected names</li> <li>Gratuitous or off-topic sexual images or behaviour in spaces where they’re not appropriate</li> <li>Physical contact and simulated physical contact (eg, textual descriptions like “hug” or “backrub”) without consent or after a request to stop.</li> <li>Threats of violence Incitement of violence towards any individual, including encouraging a person to commit suicide or to engage in self-harm</li> <li>Deliberate intimidation</li> <li>Stalking or following</li> <li>Harassing photography or recording, including logging online activity for harassment purposes</li> <li>Sustained disruption of discussion</li> <li>Unwelcome sexual attention</li> <li>Patterns of inappropriate social contact, such as requesting/assuming inappropriate levels of intimacy with others</li> <li>Continued one-on-one communication after requests to cease</li> <li>Deliberate “outing” of any aspect of a person’s identity without their consent except as necessary to protect vulnerable people from intentional abuse</li> <li>Publication of non-harassing private communication</li> <li>Microaggressions, which take the form of everyday jokes, put downs, and insults, that spread humiliating feelings to people of marginalized groups</li></ul><p>Jokes that resemble the above, such as “hipster racism”, still count as harassment even if meant satirically or ironically.</p><p>Sweet prioritizes marginalized people’s safety over privileged people’s comfort. The administrators will not act on complaints regarding:</p><ul> <li>“Reverse”-isms, including “reverse racism,” “reverse sexism,” and “cisphobia”</li> <li>Reasonable communication of boundaries, such as “leave me alone,” “go away,” or “I’m not discussing this with you.”</li> <li>Communicating in a “tone” you don’t find congenial</li> <li>Criticism of racist, sexist, cissexist, or otherwise oppressive behavior or assumptions.</li></ul><h4 id="reporting">Reporting</h4><p>If you are being harassed by a member of Sweet, notice that someone else is being harassed, or have any other concerns, please <strong>report the harassing content using the menu visible at the bottom of the post or comment</strong>. If the person being reported is an administrator, they will recuse themselves from handling your incident.</p><p>The administrators reserve the right to exclude people from Sweet based on their past behavior, including behavior outside Sweet spaces and behavior towards people who are not on Sweet. We will not name harassment victims without their affirmative consent.</p><p>Remember that you are able to flag people on Sweet, which is an anonymous way to make others aware of a person’s behaviour, but is not designed as a replacement for reporting.</p><h4 id="consequences">Consequences</h4><p>Participants asked to stop any harassing behavior are expected to comply immediately. If a participant engages in harassing behavior, the administrators may take any action they deem appropriate, up to and including expulsion from all Sweet spaces and identification of the participant as a harasser to other Sweet members or the general public.</p>'
+    return res.status(200).send(sendResponse({acceptanceStatus: false, codeOfConductText: codeOfConductText}, 200));
+  }
+  await req.user.save();
+  return res.sendStatus(200);
+});
+
+app.post('/api/code-of-conduct/accept', async (req, res) => {
+  req.user.acceptedCodeOfConduct = true;
+  await req.user.save();
+  return res.sendStatus(200);
+});
 
 app.listen(port);
 
