@@ -49,9 +49,9 @@ const ObjectId = mongoose.Types.ObjectId;
 const User = require('./models/user');
 const Relationship = require('./models/relationship');
 const Post = require('./models/post');
-require('./models/tag');
+const Tag = require('./models/tag');
 const Community = require('./models/community');
-require('./models/vote');
+const Vote = require('./models/vote');
 const Image = require('./models/image');
 
 const notifier = require('./helpers/notifier')
