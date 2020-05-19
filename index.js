@@ -1241,7 +1241,7 @@ app.post('/api/report', async (req, res) => {
     from: '"Sweet Support" <support@sweet.sh>',
     to: '"Sweet Support" <support@sweet.sh>',
     subject: "Sweet - Post report",
-    text: JSON.stringify(reportedPost)
+    text: 'Post ID:' + reportedPost._id
   });
   return res.sendStatus(200);
 });
