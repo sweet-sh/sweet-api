@@ -1233,7 +1233,7 @@ app.post('/api/settings', (req, res) => {
 });
 
 app.post('/api/report', async (req, res) => {
-  const reportedPost = Post.findById(req.body.postid);
+  const reportedPost = await Post.findById(req.body.postid);
   if (!reportedPost) {
     return res.status(404).send(sendError(404, 'Post not found.'));
   }
