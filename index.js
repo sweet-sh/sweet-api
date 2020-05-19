@@ -1237,6 +1237,12 @@ app.post('/api/report', async (req, res) => {
   if (!reportedPost) {
     return res.status(404).send(sendError(404, 'Post not found.'));
   }
+  const sentEmail = await transporter.sendMail({
+    from: '"Sweet Support" <support@sweet.sh>',
+    to: '"Sweet Support" <support@sweet.sh>',
+    subject: "Sweet - Post report",
+    text: JSON.stringify(reportedPost)
+  });
   return res.sendStatus(200);
 });
 
