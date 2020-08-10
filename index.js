@@ -329,7 +329,7 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
       break;
     case 'single':
       matchPosts = {
-        _id: req.params.identifier,
+        url: req.params.identifier,
         type: { $ne: 'draft' },
       };
       break;
