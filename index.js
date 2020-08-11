@@ -111,21 +111,21 @@ app.use('/api/*', async (req, res, next) => {
   console.log(req.headers)
   // We don't need to check headers for the login route
   if (req.originalUrl === '/api/login' || req.originalUrl === '/api/register') {
-    console.log('Login/register route, proceed')
+    // console.log('Login/register route, proceed')
     return next()
   }
   // Immediately reject all unauthorized requests
   if (!req.headers.authorization) {
-    console.log("JWT Token not supplied")
+    // console.log("JWT Token not supplied")
     return res.status(401).send(sendError(401, 'Not authorized to access this API'))
   }
   let verifyResult = JWT.verify(req.headers.authorization, { issuer: 'sweet.sh' });
   if (!verifyResult) {
-    console.log("JWT Token failed verification", req.headers.authorization)
+    // console.log("JWT Token failed verification", req.headers.authorization)
     return res.status(401).send(sendError(401, 'Not authorized to access this API'))
   }
-  console.log("We all good!")
-  console.log(verifyResult)
+  // console.log("We all good!")
+  // console.log(verifyResult)
   req.user = (await User.findOne({ _id: verifyResult.id }));
   if (!req.user) {
     return res.status(404).send(sendError(404, 'No matching user registered in API'))
@@ -206,7 +206,7 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   // Check if data has been submitted
   if (!req.body.email || !req.body.password) {
-    console.log("Login data missing")
+    // console.log("Login data missing")
     return res.status(401).send(sendError(401, 'User not authenticated'));
   }
   const user = await (User.findOne({ email: req.body.email }))
@@ -216,18 +216,18 @@ app.post('/api/login', async (req, res) => {
     });
   // If no user found
   if (!user) {
-    console.log("No user found")
+    // console.log("No user found")
     return res.status(401).send(sendError(401, 'User not authenticated'));
   }
-  console.log("Is verified:", user.isVerified)
+  // console.log("Is verified:", user.isVerified)
   if (!user.isVerified) {
-    console.log("User not verified")
+    // console.log("User not verified")
     return res.status(401).send(sendError(401, 'This account has not been verified.'));
   }
   // Compare submitted password to database hash
   bcrypt.compare(req.body.password, user.password, (err, result) => {
     if (!result) {
-      console.log("Password verification failed")
+      // console.log("Password verification failed")
       return res.status(401).send(sendError(401, 'User not authenticated'));
     }
     const jwtOptions = {
@@ -329,7 +329,7 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
       break;
     case 'single':
       matchPosts = {
-        url: req.params.identifier,
+        _id: req.params.identifier,
         type: { $ne: 'draft' },
       };
       break;
@@ -375,7 +375,7 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
   }
 
   for (const post of posts) {
-    console.log('Processing', post._id)
+    // console.log('Processing', post._id)
     // figure out if there is a newer instance of the post we're looking at. if it's an original post, check the boosts from
     // the context's relevant users; if it's a boost, check the original post if we're in fluid mode to see if lastUpdated is more
     // recent (meaning the original was bumped up from recieving a comment) and then for both fluid and chronological we have to check
@@ -385,47 +385,47 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
     if (req.params.context !== 'single') {
       let isThereNewerInstance = false;
       if (post.type === 'original') {
-        console.log("An OG post!", post.rawContent)
+        // console.log("An OG post!", post.rawContent)
         for (const boost of post.boostsV2) {
           if (boost.timestamp.getTime() > post.lastUpdated.getTime() && whosePostsCount.some(f => boost.booster.equals(f))) {
-            console.log("Got newer boost!", post.rawContent)
+            // console.log("Got newer boost!", post.rawContent)
             isThereNewerInstance = true;
             newestVersion = boost;
           } else {
-            console.log("Boost older")
+            // console.log("Boost older")
           }
         }
       } else if (post.type === 'boost') {
         if (post.boostTarget !== null) {
-          console.log("A boost!", post.boostTarget.rawContent)
+          // console.log("A boost!", post.boostTarget.rawContent)
           if (post.boostTarget.lastUpdated.getTime() > post.timestamp.getTime()) {
-            console.log("Got newer OG post!", post.boostTarget.rawContent)
+            // console.log("Got newer OG post!", post.boostTarget.rawContent)
             isThereNewerInstance = true;
             newestVersion = post.boostTarget;
           } else {
-            console.log("OG post older")
+            // console.log("OG post older")
           }
           for (const boost of post.boostTarget.boostsV2) {
             if (boost.timestamp.getTime() > post.lastUpdated.getTime() && whosePostsCount.some(f => boost.booster.equals(f))) {
-              console.log("Got newer other boost!", post.boostTarget.rawContent)
+              // console.log("Got newer other boost!", post.boostTarget.rawContent)
               isThereNewerInstance = true;
               newestVersion = boost;
             } else {
-              console.log("Other boosts older")
+              // console.log("Other boosts older")
             }
           }
         } else {
-          console.log('Error fetching boostTarget of boost');
+          // console.log('Error fetching boostTarget of boost');
           isThereNewerInstance = true;
         }
       }
 
       if (isThereNewerInstance) {
-        console.log("HIDING THIS POST")
-        console.log("====================================")
+        // console.log("HIDING THIS POST")
+        // console.log("====================================")
         continue;
       }
-      console.log("====================================")
+      // console.log("====================================")
 
     }
 
@@ -479,9 +479,9 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
       // - Anywhere: because you boosted this post ({ reason: 'ownBoost', culprit: req.user._id })
       // Remember: `displayContext` for here is always the original boosted post, not the boost itself!
       // The boost itself is at `post`.
-      console.log('+++++++++++++++++++++')
-      console.log(newestVersion)
-      console.log('+++++++++++++++++++++')
+      // console.log('+++++++++++++++++++++')
+      // console.log(newestVersion)
+      // console.log('+++++++++++++++++++++')
       // First check if you're the post's booster
       if (newestVersion.author._id.equals(req.user._id)) {
         boostBlame = { reason: 'ownBoost', culprit: newestVersion.author };
@@ -613,7 +613,6 @@ app.post('/api/plus/:postid', async (req, res) => {
 app.post('/api/boost/:postid/:locationid?', async (req, res) => {
   let isCommunityBoost = false;
   let boostCommunity;
-  console.log("Zero")
   const boostedTimestamp = new Date()
   const boostedPost = (await Post.findById(req.params.postid).populate('author'))
   if (!boostedPost) {
@@ -641,7 +640,6 @@ app.post('/api/boost/:postid/:locationid?', async (req, res) => {
     boostTarget: boostedPost._id
   })
   boost.save().then(savedBoost => {
-    console.log("One")
     const boost = {
       booster: req.user._id,
       community: isCommunityBoost ? boostCommunity._id : undefined,
@@ -651,7 +649,6 @@ app.post('/api/boost/:postid/:locationid?', async (req, res) => {
     boostedPost.boostsV2 = boostedPost.boostsV2.filter(boost => !boost.booster.equals(req.user._id))
     boostedPost.boostsV2.push(boost)
     boostedPost.save().then((boostedPost) => {
-      console.log("Here")
       // don't notify the original post's author if they're creating the boost or are unsubscribed from this post
       if (!boostedPost.unsubscribedUsers.includes(boostedPost.author._id.toString()) && !boostedPost.author._id.equals(req.user._id)) {
         notifier.notify({
@@ -899,10 +896,10 @@ app.post('/api/comment/:postid/:commentid?', async (req, res) => {
         // until we find it
         ({ commentParent, depth } = findCommentByID(req.params.commentid, post.comments));
         if (!commentParent) {
-          console.log('Parent comment not found', req.params.commentid);
+          // console.log('Parent comment not found', req.params.commentid);
           return res.status(404).send(sendError(404, 'Parent comment not found'));
         } if (depth > 5) {
-          console.log('Comment too deep', depth);
+          // console.log('Comment too deep', depth);
           return res.status(404).send(sendError(404, 'Comment too deep'));
         }
         commentParent.replies.push(comment);
@@ -943,6 +940,7 @@ app.post('/api/comment/:postid/:commentid?', async (req, res) => {
             postAuthor: post.author,
             postPrivacy: postPrivacy,
             commentAuthor: req.user,
+            commentParent: commentParent,
             parsedPayload: parsedPayload,
           });
           return res.status(200).send(sendResponse(post, 200));
