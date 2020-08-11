@@ -2,7 +2,7 @@ const User = require('../models/user');
 const Relationship = require('../models/relationship');
 const notifier = require('../helpers/notifier')
 
-const commentNotifier = ({ post, postAuthor, postPrivacy, commentAuthor, parsedPayload }) => {
+const commentNotifier = ({ post, postAuthor, postPrivacy, commentAuthor, commentParent, parsedPayload }) => {
   // Notify any and all interested parties
   User.findOne({ _id: postAuthor })
     .then((originalPoster) => {
