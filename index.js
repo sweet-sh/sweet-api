@@ -333,6 +333,12 @@ app.get('/api/posts/:context?/:timestamp?/:identifier?', async (req, res) => {
         type: { $ne: 'draft' },
       };
       break;
+    case 'url':
+      matchPosts = {
+        url: req.params.identifier,
+        type: { $ne: 'draft' },
+      };
+      break;
     default:
       break;
   }
