@@ -39,8 +39,8 @@ function notify({type, cause, notifieeID, sourceId, subjectId, url, context}) {
           .then(user => {
             const notifTexts = {
               plus: 'supports your post.',
-              reply: 'replied to your post.',
               boost: 'boosted your post.',
+              reply: 'replied to your post.',
               subscribedReply: 'replied to a post you have also replied to.',
               mentioningPostReply: 'replied to a post you were mentioned in.',
               boostedPostReply: 'replied to a post you boosted.',
