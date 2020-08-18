@@ -1,16 +1,15 @@
 const bcrypt = require('bcrypt');
 const User = require('../src/modules/user/model');
 
-function getPasswordHash(password) {
-  return bcrypt.hashSync(password, bcrypt.genSaltSync(8), null);
-}
+const getPasswordHash = (password) => bcrypt.hashSync(password, bcrypt.genSaltSync(8), null);
+
 
 const sampleUser = {
   joined: new Date(),
   lastOnline: new Date(),
   lastUpdated: new Date(),
   isVerified: true,
-  verificationToken: "abc123",
+  verificationToken: 'abc123',
   verificationTokenExpiry: new Date(),
   acceptedCodeOfConduct: true,
   email: 'test@example.com',
@@ -44,7 +43,7 @@ const sampleUser = {
     showRecommendations: true,
     showHashtags: true,
     sendMentionEmails: true,
-    sendMobileNotifications: true
+    sendMobileNotifications: true,
   },
   notifications: [],
   pushNotifSubscriptions: [],
@@ -53,9 +52,16 @@ const sampleUser = {
   bannedCommunities: [],
   mutedCommunities: [],
   hiddenRecommendedUsers: [],
-  hiddenRecommendedCommunities: []
+  hiddenRecommendedCommunities: [],
+};
+
+const unverifiedUser = {
+  ...sampleUser,
+  email: 'unverified@example.com',
+  isVerified: false,
 };
 
 module.exports = {
   sampleUser,
+  unverifiedUser,
 };
