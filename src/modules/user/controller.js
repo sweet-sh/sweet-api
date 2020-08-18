@@ -1,8 +1,11 @@
+const bcrypt = require('bcrypt');
 const { nanoid } = require('nanoid');
 const { isObjectIdValid, sendResponse, sendError } = require('../../utils');
+const JWT = require('../../helpers/jwt');
 const reservedUsernames = require('../../helpers/reservedUsernames');
 const { verifyPushToken } = require('../../helpers/expoNotifications');
 const { transporter } = require('../../mailer');
+const User = require('./model');
 
 
 const registerExpoToken = async (req, res) => {
