@@ -12,5 +12,6 @@ const touchCommunity = (id) => {
   });
 }
 
-
-module.exports.touchCommunity = touchCommunity;
+module.exports = {
+  touchCommunity,
+};

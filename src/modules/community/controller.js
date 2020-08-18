@@ -1,4 +1,4 @@
-const { sendResponse, sendError } = require('@/utils')
+const { sendResponse, sendError } = require('../../utils');
 
 const listCommunities = async (req, res) => {
   Community.find({})
@@ -16,8 +16,6 @@ const listCommunities = async (req, res) => {
     });
 }
 
-module.exports.listCommunities = listCommunities;
-
 const detailCommunity = async (req, res) => {
   Community.findById(req.params.communityid)
     .then(community => {
@@ -32,8 +30,6 @@ const detailCommunity = async (req, res) => {
       return res.status(500).send(sendError(500, 'Error fetching community'));
     });
 }
-
-module.exports.detailCommunity = detailCommunity;
 
 const joinCommunity = async (req, res) => {
   const userToModify = (await User.findById(req.user._id));
@@ -55,8 +51,6 @@ const joinCommunity = async (req, res) => {
   return res.sendStatus(200);
 }
 
-module.exports.joinCommunity = joinCommunity;
-
 const leaveCommunity = async (req, res) => {
   const userToModify = req.user;
   const communityToModify = await Community.findOne({ _id: req.body.communityId });
@@ -70,4 +64,9 @@ const leaveCommunity = async (req, res) => {
   return res.sendStatus(200);
 }
 
-module.exports.leaveCommunity = leaveCommunity;
+module.exports = {
+  listCommunities,
+  detailCommunity,
+  joinCommunity,
+  leaveCommunity,
+};

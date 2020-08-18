@@ -11,4 +11,6 @@ const hashPassword = async (password) => {
   return hashedPassword
 }
 
-module.exports.hashPassword = hashPassword;
+module.exports = {
+  hashPassword,
+};

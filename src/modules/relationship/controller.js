@@ -1,4 +1,4 @@
-const notifier = require('@/helpers/notifier')
+const notifier = require('../../helpers/notifier');
 
 
 const createRelationship = async (req, res) => {
@@ -55,4 +55,6 @@ const createRelationship = async (req, res) => {
   }
 }
 
-module.exports.createRelationship = createRelationship;
+module.exports = {
+  createRelationship,
+};

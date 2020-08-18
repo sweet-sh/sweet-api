@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 
-
 const ObjectId = mongoose.Types.ObjectId;
 
 const isObjectIdValid = (string) => {
@@ -12,8 +11,6 @@ const isObjectIdValid = (string) => {
   return false;
 }
 
-module.exports.isObjectIdValid = isObjectIdValid;
-
 const sendError = (status, message) => {
   return {
     error: {
@@ -23,8 +20,6 @@ const sendError = (status, message) => {
   };
 };
 
-module.exports.sendError = sendError;
-
 const sendResponse = (data, status, message) => {
   return {
     data,
@@ -33,4 +28,8 @@ const sendResponse = (data, status, message) => {
   };
 };
 
-module.exports.sendResponse = sendResponse;
+module.exports = {
+  isObjectIdValid,
+  sendError,
+  sendResponse,
+}

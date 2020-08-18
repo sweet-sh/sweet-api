@@ -1,5 +1,5 @@
-const Autolinker = require('autolinker')
-const sanitizeHtml = require('sanitize-html')
+const Autolinker = require('autolinker');
+const sanitizeHtml = require('sanitize-html');
 
 const sanitizeHTML = (html) => {
   return sanitizeHtml(html, {
@@ -11,7 +11,7 @@ const sanitizeHTML = (html) => {
       a: ['sweet-tag-link', 'sweet-community-link', 'sweet-user-link']
     },
     transformTags: {
-      a: function (tagName, attribs) {
+      a: (tagName, attribs) => {
         console.log(attribs.href)
         // If a link is not explicitly relative due to an initial / (like mention and hashtag links are) and doesn't already include a protocol:
         if (attribs.href.substring(0, 1) !== '/' && !attribs.href.includes('//')) {
@@ -87,5 +87,5 @@ const parseText = (rawText, mentionsEnabled = true, hashtagsEnabled = true, urls
 }
 
 module.exports = {
-  parseText: parseText
+  parseText,
 }

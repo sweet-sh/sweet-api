@@ -1,6 +1,5 @@
 const nodemailer = require('nodemailer');
 
-
 const transporter = nodemailer.createTransport({
 	host: process.env.EMAIL_SERVER,
 	port: 587,
@@ -11,4 +10,6 @@ const transporter = nodemailer.createTransport({
 	}
 });
 
-module.exports = transporter;
+module.exports = {
+  transporter,
+};

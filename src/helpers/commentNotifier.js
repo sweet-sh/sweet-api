@@ -1,6 +1,6 @@
-const User = require('../models/user');
-const Relationship = require('../models/relationship');
-const notifier = require('../helpers/notifier')
+const User = require('../modules/user/model');
+const Relationship = require('../modules/relationship/model');
+const notifier = require('./notifier');
 
 const commentNotifier = ({ post, postAuthor, postPrivacy, commentAuthor, commentParent, parsedPayload }) => {
   // Notify any and all interested parties
@@ -266,5 +266,5 @@ const commentNotifier = ({ post, postAuthor, postPrivacy, commentAuthor, comment
 }
 
 module.exports = {
-  commentNotifier: commentNotifier
-}
+  commentNotifier,
+};

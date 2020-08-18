@@ -1,9 +1,8 @@
 const { nanoid } = require('nanoid');
-const { isObjectIdValid } = require('@/utils');
-const reservedUsernames = require('@/helpers/reservedUsernames');
-const { verifyPushToken } = require('@/helpers/expoNotifications');
-const { sendResponse, sendError } = require('@/utils')
-const transporter = require('@/mailer');
+const { isObjectIdValid, sendResponse, sendError } = require('../../utils');
+const reservedUsernames = require('../../helpers/reservedUsernames');
+const { verifyPushToken } = require('../../helpers/expoNotifications');
+const { transporter } = require('../../mailer');
 
 
 const registerExpoToken = async (req, res) => {
@@ -23,8 +22,6 @@ const registerExpoToken = async (req, res) => {
   console.log('Registered!')
   return res.sendStatus(200);
 }
-
-module.exports.registerExpoToken = registerExpoToken
 
 const register = async (req, res) => {
   // Check if data has been submitted
@@ -78,8 +75,6 @@ const register = async (req, res) => {
   return res.sendStatus(200);
 }
 
-module.exports.register = register;
-
 const login = async (req, res) => {
   // Check if data has been submitted
   if (!req.body.email || !req.body.password) {
@@ -114,8 +109,6 @@ const login = async (req, res) => {
   });
 }
 
-module.exports.login = login;
-
 const listUsers = async (req, res) => {
   function c(e) {
     console.error('Error in user data builders');
@@ -144,8 +137,6 @@ const listUsers = async (req, res) => {
   const myUsers = (await User.find({ _id: { $in: myRelationships } }, 'email username imageEnabled image displayName aboutParsed aboutRaw location pronouns websiteParsed websiteRaw').sort(sortOrder).catch(c))
   return res.status(200).send(sendResponse(myUsers, 200))
 }
-
-module.exports.listUsers = listUsers;
 
 const detailUser = async (req, res) => {
   function c(e) {
@@ -262,8 +253,6 @@ const detailUser = async (req, res) => {
   return res.status(200).send(sendResponse(response, 200));
 }
 
-module.exports.detailUser = detailUser;
-
 const changeSettings = async (req, res) => {
   const newSettings = req.body;
   if (!newSettings) {
@@ -280,8 +269,6 @@ const changeSettings = async (req, res) => {
     })
 }
 
-module.exports.changeSettings = changeSettings;
-
 const reportUser = async (req, res) => {
   const reportedPost = await Post.findById(req.body.postid);
   if (!reportedPost) {
@@ -296,8 +283,6 @@ const reportUser = async (req, res) => {
   return res.sendStatus(200);
 }
 
-module.exports.reportUser = reportUser;
-
 const getCoC = async (req, res) => {
   if (req.user.acceptedCodeOfConduct) {
     return res.status(200).send(sendResponse({acceptanceStatus: true}, 200));
@@ -307,12 +292,21 @@ const getCoC = async (req, res) => {
   }
 }
 
-module.exports.getCoC = getCoC;
-
 const acceptCoC = async (req, res) => {
   req.user.acceptedCodeOfConduct = true;
   await req.user.save();
   return res.sendStatus(200);
 }
 
-module.exports.acceptCoC = acceptCoC;
+
+module.exports = {
+  acceptCoC,
+  changeSettings,
+  detailUser,
+  getCoC,
+  listUsers,
+  login,
+  register,
+  registerExpoToken,
+  reportUser,
+};

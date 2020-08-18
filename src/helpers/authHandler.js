@@ -1,5 +1,5 @@
-const JWT = require('./helpers/jwt');
-const User = require('./modules/user/model');
+const JWT = require('./jwt');
+const User = require('../modules/user/model');
 
 
 const authHandler = async (req, res, next) => {
@@ -22,6 +22,8 @@ const authHandler = async (req, res, next) => {
     return res.status(404).send(sendError(404, 'No matching user registered in API'))
   }
   next()
-}
+};
 
-module.exports.authHandler = authHandler;
+module.exports = {
+  authHandler,
+};

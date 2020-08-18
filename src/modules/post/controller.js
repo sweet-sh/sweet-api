@@ -1,9 +1,8 @@
 const { nanoid } = require('nanoid');
-const { isObjectIdValid } = require('@/utils');
-const notifier = require('@/helpers/notifier')
-const { commentNotifier } = require('@/helpers/commentNotifier')
-const { parseText } = require('@/helpers/parseText');
-const { sendResponse, sendError } = require('@/utils')
+const { isObjectIdValid, sendResponse, sendError } = require('../../utils');
+const notifier = require('../../helpers/notifier');
+const { commentNotifier } = require('../../helpers/commentNotifier');
+const { parseText } = require('../../helpers/parseText');
 
 
 const listPosts = async (req, res) => {
@@ -339,9 +338,6 @@ const listPosts = async (req, res) => {
   return res.status(200).send(sendResponse(displayedPosts, 200));
 }
 
-module.exports.listPosts = listPosts;
-
-
 const plusPost = async (req, res) => {
   let plusAction;
   Post.findOne({
@@ -383,9 +379,6 @@ const plusPost = async (req, res) => {
       return res.status(500).send(sendError(500, 'Error fetching post to plus'));
     });
 }
-
-module.exports.plusPost = plusPost;
-
 
 /*
  * Responds to a post request that boosts a post.
@@ -451,9 +444,6 @@ const boostPost = async (req, res) => {
   })
 }
 
-module.exports.boostPost = boostPost;
-
-
 /* 
  * Responds to a post request that boosts a post.
  * Inputs: id of the post to be boosted
@@ -461,7 +451,7 @@ module.exports.boostPost = boostPost;
  *   boosts field of the old post, sends a notification to the user whose post
  *   was boosted.
 */
-const unboostPost = async (req, res) {
+const unboostPost = async (req, res) => {
   Post.findOne({ _id: req.params.postid }, { boostsV2: 1, privacy: 1, author: 1, url: 1, timestamp: 1 })
     .then((boostedPost) => {
       const boost = boostedPost.boostsV2.find(b => {
@@ -604,8 +594,6 @@ const createPost = async (req, res) => {
     });
 }
 
-module.exports.createPost = createPost;
-
 const createComment = async (req, res) => {
   // loop over the array of comments adding 1 +  countComments on its replies to the count variable.
   function countComments(comments) {
@@ -745,4 +733,11 @@ const createComment = async (req, res) => {
     });
 }
 
-module.exports.createComment = createComment;
+module.exports = {
+  listPosts,
+  plusPost,
+  boostPost,
+  unboostPost,
+  createPost,
+  createComment,
+};

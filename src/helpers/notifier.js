@@ -1,13 +1,12 @@
-const webpush = require('web-push')
-const User = require('../models/user')
-const Community = require('../models/community')
-
-const { sendExpoNotifications } = require('../helpers/expoNotifications');
+const webpush = require('web-push');
+const User = require('../modules/user/model');
+const Community = require('../modules/community/model');
+const { sendExpoNotifications } = require('./expoNotifications');
 
 // DEBUG: SEE BELOW
 // const emailer = require('./emailer')
 
-function markRead(userId, subjectId) {
+const markRead = (userId, subjectId) => {
   User.findOne({
     _id: userId
   }, 'notifications')
@@ -31,8 +30,8 @@ function markRead(userId, subjectId) {
  * @param {string} url - URL to send to the person who clicks the notification
  * @param {string} context - A verb or noun relating to the action.
  */
-function notify({type, cause, notifieeID, sourceId, subjectId, url, context}) {
-  function buildNotification() {
+const notify = ({ type, cause, notifieeID, sourceId, subjectId, url, context }) => {
+  const buildNotification = () => {
     switch (type) {
       case 'user':
         return User.findOne({ _id: sourceId })
@@ -184,5 +183,7 @@ function notify({type, cause, notifieeID, sourceId, subjectId, url, context}) {
     })
 }
 
-module.exports.markRead = markRead
-module.exports.notify = notify
+module.exports = {
+  markRead,
+  notify,
+};

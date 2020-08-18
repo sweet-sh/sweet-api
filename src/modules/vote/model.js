@@ -1,4 +1,4 @@
-const mongoose = require('mongoose')
+const mongoose = require('mongoose');
 const DBReference = mongoose.Schema.Types.ObjectId
 
 const commentSchema = new mongoose.Schema({

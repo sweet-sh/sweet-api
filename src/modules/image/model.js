@@ -1,4 +1,4 @@
-const mongoose = require('mongoose')
+const mongoose = require('mongoose');
 
 const imageSchema = new mongoose.Schema({
   context: String, // either "user" or "community", corresponding to the post schema's type field's values "original" and "community"
