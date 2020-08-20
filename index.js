@@ -55,7 +55,8 @@ const Vote = require('./models/vote');
 const Image = require('./models/image');
 
 const notifier = require('./helpers/notifier')
-const { commentNotifier } = require('./helpers/commentNotifier')
+const { commentNotifier } = require('./helpers/commentNotifier');
+const jwt = require('./helpers/jwt');
 
 const sendError = (status, message) => {
   return {
@@ -111,20 +112,20 @@ app.use('/api/*', async (req, res, next) => {
   console.log(req.headers)
   // We don't need to check headers for the login route
   if (req.originalUrl === '/api/login' || req.originalUrl === '/api/register') {
-    // console.log('Login/register route, proceed')
+    console.log('Login/register route, proceed')
     return next()
   }
   // Immediately reject all unauthorized requests
   if (!req.headers.authorization) {
-    // console.log("JWT Token not supplied")
+    console.log("JWT Token not supplied")
     return res.status(401).send(sendError(401, 'Not authorized to access this API'))
   }
   let verifyResult = JWT.verify(req.headers.authorization, { issuer: 'sweet.sh' });
   if (!verifyResult) {
-    // console.log("JWT Token failed verification", req.headers.authorization)
+    console.log("JWT Token failed verification", req.headers.authorization)
     return res.status(401).send(sendError(401, 'Not authorized to access this API'))
   }
-  // console.log("We all good!")
+  console.log("We all good!")
   // console.log(verifyResult)
   req.user = (await User.findOne({ _id: verifyResult.id }));
   if (!req.user) {
@@ -192,10 +193,10 @@ app.post('/api/register', async (req, res) => {
     from: '"Sweet Support" <support@sweet.sh>',
     to: req.body.email,
     subject: "Sweet - New user verification",
-    text: 'Hi! You are receiving this because you have created a new account on sweet with this email.\n\n' +
+    text: 'Hi! You are receiving this because you have created a new account on Sweet with this email.\n\n' +
     'Please click on the following link, or paste it into your browser, to verify your email:\n\n' +
     'https://sweet.sh/verify-email/' + verificationToken + '\n\n' +
-    'If you did not create an account on sweet, please ignore and delete this email. The token will expire in an hour.\n'
+    'If you did not create an account on Sweet, please ignore and delete this email. The token will expire in an hour.\n'
   });
   if (!savedUser || !savedFollow || !sentEmail) {
     return res.status(500).send(sendError(500, 'There has been a problem processing your registration.'));
@@ -222,7 +223,7 @@ app.post('/api/login', async (req, res) => {
   // console.log("Is verified:", user.isVerified)
   if (!user.isVerified) {
     // console.log("User not verified")
-    return res.status(401).send(sendError(401, 'This account has not been verified.'));
+    return res.status(403).send(sendError(403, 'This account has not been verified.'));
   }
   // Compare submitted password to database hash
   bcrypt.compare(req.body.password, user.password, (err, result) => {
