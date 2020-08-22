@@ -2,11 +2,13 @@ const bcrypt = require('bcrypt');
 const { nanoid } = require('nanoid');
 const { isObjectIdValid, sendResponse, sendError } = require('../../utils');
 const JWT = require('../../helpers/jwt');
-const reservedUsernames = require('../../helpers/reservedUsernames');
+const { reservedUsernames } = require('../../config/constants');
 const { verifyPushToken } = require('../../helpers/expoNotifications');
-const { transporter } = require('../../mailer');
-const User = require('./model');
-
+const { mailer } = require('../../mailer');
+const Community = require('../../modules/community/model')
+const Post = require('../../modules/post/model')
+const Relationship = require('../../modules/relationship/model')
+const User = require('../../modules/user/model')
 
 const registerExpoToken = async (req, res) => {
   console.log('Registering Expo token!', req.body.token)
@@ -63,7 +65,7 @@ const register = async (req, res) => {
     value: 'follow'
   });
   const savedFollow = await sweetbotFollow.save();
-  const sentEmail = await transporter.sendMail({
+  const sentEmail = await mailer.sendMail({
     from: '"Sweet Support" <support@sweet.sh>',
     to: req.body.email,
     subject: "Sweet - New user verification",
@@ -277,7 +279,7 @@ const reportUser = async (req, res) => {
   if (!reportedPost) {
     return res.status(404).send(sendError(404, 'Post not found.'));
   }
-  const sentEmail = await transporter.sendMail({
+  const sentEmail = await mailer.sendMail({
     from: '"Sweet Support" <support@sweet.sh>',
     to: '"Sweet Support" <support@sweet.sh>',
     subject: "Sweet - Post report",

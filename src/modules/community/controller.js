@@ -1,4 +1,6 @@
 const { sendResponse, sendError } = require('../../utils');
+const Community = require('../../modules/community/model')
+const User = require('../../modules/user/model')
 
 const listCommunities = async (req, res) => {
   Community.find({})

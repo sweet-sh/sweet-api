@@ -1,5 +1,6 @@
 const notifier = require('../../helpers/notifier');
-
+const Relationship = require('../../modules/relationship/model')
+const User = require('../../modules/user/model')
 
 const createRelationship = async (req, res) => {
   if (req.body.fromId !== req.user._id.toString()) {
