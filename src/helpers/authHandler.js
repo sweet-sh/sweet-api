@@ -1,6 +1,6 @@
 const JWT = require('./jwt');
 const User = require('../modules/user/model');
-
+const { sendError } = require('../utils')
 
 const authHandler = async (req, res, next) => {
   console.log(req.originalUrl)
@@ -13,7 +13,7 @@ const authHandler = async (req, res, next) => {
   if (!req.headers.authorization) {
     return res.status(401).send(sendError(401, 'Not authorized to access this API'))
   }
-  let verifyResult = JWT.verify(req.headers.authorization, { issuer: 'sweet.sh' });
+  const verifyResult = JWT.verify(req.headers.authorization, { issuer: 'sweet.sh' });
   if (!verifyResult) {
     return res.status(401).send(sendError(401, 'Not authorized to access this API'))
   }
