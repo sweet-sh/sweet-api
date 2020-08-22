@@ -67,10 +67,10 @@ const register = async (req, res) => {
     from: '"Sweet Support" <support@sweet.sh>',
     to: req.body.email,
     subject: "Sweet - New user verification",
-    text: 'Hi! You are receiving this because you have created a new account on sweet with this email.\n\n' +
+    text: 'Hi! You are receiving this because you have created a new account on Sweet with this email.\n\n' +
     'Please click on the following link, or paste it into your browser, to verify your email:\n\n' +
     'https://sweet.sh/verify-email/' + verificationToken + '\n\n' +
-    'If you did not create an account on sweet, please ignore and delete this email. The token will expire in an hour.\n'
+    'If you did not create an account on Sweet, please ignore and delete this email. The token will expire in an hour.\n'
   });
   if (!savedUser || !savedFollow || !sentEmail) {
     return res.status(500).send(sendError(500, 'There has been a problem processing your registration.'));
@@ -97,7 +97,7 @@ const login = async (req, res) => {
   // console.log("Is verified:", user.isVerified)
   if (!user.isVerified) {
     // console.log("User not verified")
-    return res.status(401).send(sendError(401, 'This account has not been verified.'));
+    return res.status(403).send(sendError(403, 'This account has not been verified.'));
   }
   // Compare submitted password to database hash
   bcrypt.compare(req.body.password, user.password, (err, result) => {
