@@ -3,22 +3,27 @@ require('dotenv').config();
 const express = require('express');
 const app = express();
 const port = process.env.PORT || 8787;
+const cors = require('cors')
 const bodyParser = require('body-parser');
+const formidable = require('formidable')
 const bcrypt = require('bcrypt');
 const { nanoid } = require('nanoid');
 const reservedUsernames = require('./helpers/reservedUsernames');
 const { parseText } = require('./helpers/parseText');
 const { verifyPushToken } = require('./helpers/expoNotifications');
+const { processImage } = require('./helpers/aws');
+const { imageQuality } = require('./config')
 
 // JWT
 const JWT = require('./helpers/jwt');
 
 // CORS
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  next();
-});
+// app.use((req, res, next) => {
+//   res.header('Access-Control-Allow-Origin', '*');
+//   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+//   next();
+// });
+app.use(cors())
 
 // Nodemailer
 const nodemailer = require('nodemailer');
@@ -957,6 +962,36 @@ app.post('/api/comment/:postid/:commentid?', async (req, res) => {
       console.error(error);
       return res.status(500).send(sendError(500, 'Error saving comment'));
     });
+});
+
+app.post('/api/image', async (req, res) => {
+  const form = formidable({ multiples: true });
+  form.parse(req, async (err, fields, files) => {
+    if (err) {
+      next(err);
+      return;
+    }
+    const imageQualitySettings = imageQuality[req.user.settings.imageQuality]
+    const imageResponse = await processImage({ file: files.image, prefix: 'images', imageQualitySettings });
+    return res.status(imageResponse.status).send(imageResponse.error ? sendError(imageResponse.status, imageResponse.error) : sendResponse(imageResponse.payload, imageResponse.status))
+  });
+
+  // if (req.body.image) {
+  //   req.body.images.forEach(async (filename) => {
+  //     const image = new Image({
+  //       context: isCommunityPost ? 'community' : 'user',
+  //       filename: `images/${filename}`,
+  //       url: `https://sweet-images.s3.eu-west-2.amazonaws.com/images/${filename}`,
+  //       privacy: isPrivate ? 'private' : 'public',
+  //       user: req.user._id,
+  //       // DEBUG: NOT YET ENABLED
+  //       // quality: postImageQuality,
+  //       // height: metadata.height,
+  //       // width: metadata.width
+  //     });
+  //     await image.save();
+  //   });
+  // }
 });
 
 app.get('/api/communities/all', (req, res) => {
