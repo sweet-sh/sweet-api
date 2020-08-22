@@ -37,7 +37,7 @@ describe('logging in', () => {
   it('should 401 if the matching user is not verified', (done) => {
     const email = 'unverified@example.com';
     const password = 'foobar';
-    request(app).post('/api/login').send({ email, password }).expect(401, done);
+    request(app).post('/api/login').send({ email, password }).expect(403, done);
   });
 
   it("should 401 if the submitted password doesn't match", (done) => {
