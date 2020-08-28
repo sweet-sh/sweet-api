@@ -71,7 +71,9 @@ const commentSchema = new mongoose.Schema({
   deleted: { type: Boolean, default: false },
   cachedHTML: { // was rendered with either the versions of the templates indicated by the post's corresponding cachedHTML MTimes or the version that was available when the comment was created, whichever is newer
     fullContentHTML: String
-  }
+  },
+  htmlBody: String,
+  jsonBody: Object,
 })
 
 commentSchema.add({ replies: [commentSchema] })
@@ -139,7 +141,9 @@ const postSchema = new mongoose.Schema({
     fullContentHTML: String,
     imageGalleryMTime: Date, // the last modified date of the imagegallery template when the html was rendered
     embedsMTime: Date // the last modified date of the embeds template when the html was rendered
-  }
+  },
+  htmlBody: String,
+  jsonBody: Object,
 })
 
 // used to select posts to display in feeds
