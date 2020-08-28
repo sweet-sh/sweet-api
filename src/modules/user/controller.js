@@ -114,6 +114,30 @@ const login = async (req, res) => {
   });
 }
 
+const listAllUsers = (req, res) => {
+  User.find()
+    .then((users) => {
+      const usersPayload = [];
+      users.forEach((user) => {
+        const userObject = {
+          id: user._id,
+          displayName: user.displayName,
+          username: user.username,
+          value: user.username,
+          image: user.imageEnabled
+            ? `https://sweet-images.s3.amazonaws.com/${user.image}`
+            : '/images/cake.svg',
+        };
+        usersPayload.push(userObject);
+      });
+      res.status(200).send(sendResponse(usersPayload, 200));
+    })
+    .catch((error) => {
+      console.log(error);
+      return res.status(500).send(sendError(500, 'Error fetching users'));
+    });
+};
+
 const listUsers = async (req, res) => {
   function c(e) {
     console.error('Error in user data builders');
@@ -310,6 +334,7 @@ module.exports = {
   detailUser,
   getCoC,
   listUsers,
+  listAllUsers,
   login,
   register,
   registerExpoToken,
