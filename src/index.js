@@ -9,12 +9,14 @@ const mongoose = require('mongoose');
 const configDatabase = require('./config/database').config;
 const { mailer } = require('./mailer');
 const { authHandler } = require('./helpers/authHandler');
+const { scrapeURL } = require('./utils');
 
 const {
   registerExpoToken,
   register,
   login,
   listUsers,
+  listAllUsers,
   detailUser,
   reportUser,
   changeSettings,
@@ -77,6 +79,7 @@ app.get('/api/communities/:communityid', detailCommunity);
 app.post('/api/community/join', joinCommunity);
 app.post('/api/community/leave', leaveCommunity);
 
+app.get('/api/users/all', listAllUsers);
 app.get('/api/users/:sortorder', listUsers);
 app.get('/api/user/:identifier', detailUser);
 app.post('/api/settings', changeSettings);
@@ -88,6 +91,8 @@ app.get('/api/code-of-conduct', getCoC);
 app.post('/api/code-of-conduct/accept', acceptCoC);
 
 app.post('/api/image', createImage);
+
+app.post('/api/url-metadata', scrapeURL);
 
 app.listen(port);
 
