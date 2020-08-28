@@ -75,7 +75,7 @@ const scrapeURL = async (req, res) => {
       console.log('YouTube link had time specifier that was apparently malformed! Error:');
       console.log(err);
     }
-  } else if ((regexParsedURL = vimeoUrlFindingRegex.exec(finalUrl))) {
+  } else if ((regexParsedURL = vimeoUrlFindingRegex.exec(metadata.url))) {
     embedUrl = 'https://player.vimeo.com/video/' + regexParsedURL[4] + '?autoplay=1';
   }
   console.log(embedUrl);
