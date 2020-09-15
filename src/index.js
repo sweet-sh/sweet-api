@@ -30,6 +30,11 @@ const {
   unboostPost,
   createPost,
   createComment,
+  deleteComment,
+  subscribeToPost,
+  unsubscribeFromPost,
+  deletePost,
+  editPost,
 } = require('./modules/post/controller');
 const {
   listCommunities,
@@ -68,11 +73,20 @@ app.post('/api/register', register);
 app.post('/api/login', login);
 
 app.get('/api/posts/:context?/:timestamp?/:identifier?', listPosts);
-app.post('/api/post', createPost);
 app.post('/api/plus/:postid', plusPost);
 app.post('/api/boost/:postid/:locationid?', boostPost);
 app.post('/removeboost/:postid', unboostPost);
 app.post('/api/comment/:postid/:commentid?', createComment);
+
+app.post('/api/post', createPost);
+app.delete('/api/post', deletePost);
+app.put('/api/post', editPost);
+
+app.post('/api/comment', createComment);
+app.delete('/api/comment', deleteComment);
+
+app.post('/api/subscription', subscribeToPost);
+app.delete('/api/subscription', unsubscribeFromPost);
 
 app.get('/api/communities/all', listCommunities);
 app.get('/api/communities/:communityid', detailCommunity);
