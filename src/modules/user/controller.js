@@ -1,5 +1,7 @@
 const bcrypt = require('bcrypt');
 const { nanoid } = require('nanoid');
+const mongoose = require('mongoose');
+const ObjectId = mongoose.Types.ObjectId;
 const { isObjectIdValid, sendResponse, sendError } = require('../../utils');
 const JWT = require('../../helpers/jwt');
 const { reservedUsernames } = require('../../config/constants');
@@ -182,7 +184,7 @@ const detailUser = async (req, res) => {
     userQuery = { username: req.params.identifier };
   }
 
-  const profileData = await User.findOne(userQuery, 'email username imageEnabled image displayName aboutParsed aboutRaw location pronouns websiteParsed websiteRaw settings acceptedCodeOfConduct')
+  const profileData = await User.findOne(userQuery, 'email username imageEnabled image displayName aboutParsed aboutRaw location pronouns websiteParsed websiteRaw settings acceptedCodeOfConduct lastOnline lastUpdated')
     .catch(err => {
       return res.status(500).send(sendError(500, 'Error fetching user'));
     });
