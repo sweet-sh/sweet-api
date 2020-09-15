@@ -84,10 +84,22 @@ const renderHTMLContent = async (postOrComment, forEditor = false) => {
   }
 };
 
+const parseHTMLBody = (input) => {
+  const { document } = new JSDOM(input).window;
+  const parsedHTML = parser
+    .parse(document, { preserveWhitespace: true })
+    .toJSON();
+  return parsedHTML;
+};
+
 const keepCachedHTMLUpToDate = async (post) => {
   async function updateHTMLRecursive(displayContext) {
     console.log('Updating HTML for post', displayContext._id);
+    // First convert old HTML into new HTML
     displayContext.htmlBody = await renderHTMLContent(displayContext);
+    // Now convert new HTML into JSON
+    const parsedPost = parseHTMLBody(displayContext.htmlBody);
+    displayContext.jsonBody = parsedPost;
     if (displayContext.comments) {
       for (const comment of displayContext.comments) {
         console.log('Updating HTML for comment', comment._id);
@@ -105,14 +117,6 @@ const keepCachedHTMLUpToDate = async (post) => {
   return post;
 };
 
-const parsePost = (input) => {
-  const { document } = new JSDOM(input).window;
-  const parsedHTML = parser
-    .parse(document, { preserveWhitespace: true })
-    .toJSON();
-  return parsedHTML;
-};
-
 async function asyncForEach(array, callback) {
   for (let index = 0; index < array.length; index++) {
     await callback(array[index], index, array);
@@ -125,10 +129,8 @@ const convertPosts = () => {
       await asyncForEach(response, async (post) => {
         console.log('================================================');
         console.log('Processing post', post._id);
-        const updatedPost = await keepCachedHTMLUpToDate(post);
-        const parsedPost = parsePost(updatedPost.htmlBody);
-        post.jsonBody = parsedPost;
-        post.save();
+        await keepCachedHTMLUpToDate(post);
+        console.log('Processed!');
       });
       console.log('Done!');
     };

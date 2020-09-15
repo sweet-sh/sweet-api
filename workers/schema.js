@@ -13,6 +13,9 @@ const schema = new Schema({
       group: 'block',
       draggable: false,
       parseDOM: [{ tag: 'p' }],
+      toDOM() {
+        return ['p', 0];
+      },
     },
     blockquote: {
       content: 'block*',
@@ -20,10 +23,16 @@ const schema = new Schema({
       defining: true,
       draggable: false,
       parseDOM: [{ tag: 'blockquote' }],
+      toDOM() {
+        return ['blockquote', 0];
+      },
     },
     bullet_list: {
       content: 'list_item+',
       group: 'block',
+      toDOM() {
+        return ['ul', 0];
+      },
     },
     code_block: {
       content: 'text*',
@@ -33,22 +42,34 @@ const schema = new Schema({
       defining: true,
       draggable: false,
       parseDOM: [{ tag: 'pre', preserveWhitespace: 'full' }],
+      toDOM() {
+        return ['pre', ['code', 0]];
+      },
     },
     horizontal_rule: {
       group: 'block',
       parseDOM: [{ tag: 'hr' }],
+      toDOM() {
+        return ['hr'];
+      },
     },
     list_item: {
       content: 'paragraph block*',
       defining: true,
       draggable: false,
       parseDOM: [{ tag: 'li' }],
+      toDOM() {
+        return ['li', 0];
+      },
     },
     ordered_list: {
       attrs: { order: { default: 1 } },
       content: 'list_item+',
       group: 'block',
       parseDOM: [{ tag: 'ol' }],
+      toDOM() {
+        return ['ol', 0];
+      },
     },
     mention: {
       attrs: {
@@ -73,6 +94,14 @@ const schema = new Schema({
           },
         },
       ],
+      toDOM: (node) => [
+        'a',
+        {
+          href: '/' + node.attrs.label,
+          class: 'mention-link',
+        },
+        '@' + node.attrs.label,
+      ],
     },
     sweet_link_preview: {
       group: 'block',
@@ -90,11 +119,11 @@ const schema = new Schema({
           tag: 'a.link-preview-container',
           getAttrs(dom) {
             const url = dom.getAttribute('href');
-            const embedUrl = dom.getAttribute('embedurl');
+            const embedUrl = dom.getAttribute('data-embed-url');
             const title = dom.querySelector('.link-preview-title').innerHTML;
             const description = dom.querySelector('.link-preview-description')
               .innerHTML;
-            const image = dom.querySelector('img') ? dom.querySelector('img').getAttribute('src') : null;
+            const image = dom.querySelector('img').getAttribute('src') || null;
             const domain = dom.querySelector('.link-preview-domain').innerHTML;
             return {
               url,
@@ -106,6 +135,31 @@ const schema = new Schema({
             };
           },
         },
+      ],
+      toDOM: (node) => [
+        'a',
+        {
+          class: `link-preview-container${
+            node.attrs.embedUrl ? ` embedded-video-preview` : ``
+          }`,
+          href: node.attrs.url || '',
+          'data-embed-url': node.attrs.embedUrl || null,
+          rel: 'noopener noreferrer nofollow',
+          target: '_blank',
+        },
+        node.attrs.image ? ['img', { class: 'link-preview-image', src: node.attrs.image }] : ['div', { class: 'link-preview-icon' }, ['i', { class: 'fas fa-external-link-square-alt' }]],
+        node.attrs.embedUrl ? ['div', { class: 'link-preview-icon' }, ['i', { class: 'fas fa-play-circle' }]] : ['div'],
+        [
+          'div',
+          { class: 'link-preview-text-container' },
+          ['div', { class: 'link-preview-title' }, node.attrs.title || ''],
+          [
+            'div',
+            { class: 'link-preview-description' },
+            node.attrs.description || '',
+          ],
+          ['div', { class: 'link-preview-domain' }, node.attrs.domain || ''],
+        ],
       ],
     },
     image: {
@@ -125,11 +179,67 @@ const schema = new Schema({
           },
         },
       ],
+      toDOM: (node) => [
+        'a',
+        { href: node.attrs.src },
+        [
+          'img',
+          {
+            class: 'post-single-image',
+            src: node.attrs.src.startsWith('/api/image/display') ? node.attrs.src : ('/api/image/display/' + node.attrs.src.replace('images/', '')),
+            alt: node.attrs.alt,
+          },
+        ],
+      ],
+    },
+    sweet_image_preview: {
+      attrs: {
+        src: {},
+        alt: { default: null },
+      },
+      toDOM: (node) => [
+        'div',
+        { class: 'post-editor-image' },
+        [
+          'img',
+          {
+            class: 'post-editor-image__image',
+            src: node.attrs.src.startsWith('/api/image/display') ? node.attrs.src : ('/api/image/display/' + node.attrs.src.replace('images/', '')),
+            alt: node.attrs.alt,
+          },
+        ],
+        [
+          'textarea',
+          {
+            class: 'post-editor-image__text',
+            placeholder: 'Describe this image for people using screen readers',
+          },
+          node.attrs.alt
+        ],
+        [
+          'div',
+          {
+            class: 'post-editor-image__draghandle',
+            'data-drag-handle': true
+          },
+          '<i class="far fa-bars"></i>'
+        ]
+      ],
     },
     gallery: {
       group: 'block',
       content: 'image*',
       parseDOM: [{ tag: 'div.post-images', priority: 40 }],
+      toDOM(node) {
+        const lookupTable = {
+          1: 'one-image',
+          2: 'two-images',
+          3: 'three-images',
+          4: 'four-images',
+        }
+        const numberOfImages = lookupTable[node.content.content.length];
+        return ['div', { class: 'post-images ' + numberOfImages }, 0];
+      },
       draggable: true,
     },
   },
@@ -147,6 +257,14 @@ const schema = new Schema({
         },
       ],
       inclusive: false,
+      toDOM(node) {
+        const { href, target } = node.attrs;
+        return [
+          'a',
+          { href, rel: 'noopener noreferrer nofollow', target: '_blank' },
+          0,
+        ];
+      },
     },
     bold: {
       parseDOM: [
@@ -163,13 +281,27 @@ const schema = new Schema({
           getAttrs: (value) => /^(bold(er)?|[5-9]\d{2,})$/.test(value) && null,
         },
       ],
+      toDOM() {
+        return ['strong', 0];
+      },
     },
     code: {
       excludes: '_',
       parseDOM: [{ tag: 'code' }],
+      toDOM() {
+        return ['code', 0];
+      },
     },
     italic: {
       parseDOM: [{ tag: 'i' }, { tag: 'em' }, { style: 'font-style=italic' }],
+      toDOM() {
+        return ['em', 0];
+      },
+    },
+    underline: {
+      toDOM() {
+        return ['u', 0];
+      },
     },
   },
 });

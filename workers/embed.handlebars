@@ -1,4 +1,4 @@
-<a class="link-preview-container{{#eq type "video"}} embedded-video-preview{{/eq}}" target="_blank" rel="noopener noreferrer"{{#eq type "video"}} embedurl="{{embedUrl}}"{{/eq}} href="{{linkUrl}}">
+<a class="link-preview-container{{#eq type "video"}} embedded-video-preview{{/eq}}" target="_blank" rel="noopener noreferrer"{{#eq type "video"}} data-embed-url="{{embedUrl}}"{{/eq}} href="{{linkUrl}}">
         {{#if image}}
         {{#eq type "video"}}<div style="position:relative;display:flex;align-items:center;justify-content:center;">{{/eq}}
         <img class="link-preview-image{{#eq type "video"}} embedded-video-preview-image{{/eq}}" src="{{image}}" />
