@@ -39,6 +39,7 @@ const processImage = async ({ file, prefix, imageQualitySettings }) => {
   let sharpImage
   let imageMeta
   let finalFormat
+
   // Use sharp to harvest some image metadata - this is our first test to see if the received file is valid
   try {
     sharpImage = sharp(file.path)
@@ -64,15 +65,15 @@ const processImage = async ({ file, prefix, imageQualitySettings }) => {
       width: imageQualitySettings.resize,
       withoutEnlargement: true
     }).rotate()
-    if (imageFormat === 'png' && imageQualitySettings.name === 'standard') {
+    if (imageFormat === 'png') {
       // Prevent PNG transparency - fill it with white
       sharpImage = sharpImage.flatten({ background: { r: 255, g: 255, b: 255 } })
     }
     if (imageFormat === 'jpeg' || imageQualitySettings.name === 'standard') {
-      sharpImage = sharpImage.jpeg({ quality: imageQualitySettings.jpegQuality })
+      sharpImage = sharpImage.jpeg({ quality: imageQualitySettings.jpegQuality }).toFormat('jpeg');
       finalFormat = 'jpg'
     } else {
-      sharpImage = sharpImage.png()
+      sharpImage = sharpImage.toFormat('png');
       finalFormat = 'png'
     }
   } else {

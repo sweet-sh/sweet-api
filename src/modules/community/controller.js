@@ -1,4 +1,4 @@
-const { sendResponse, sendError } = require('../../utils');
+const { isObjectIdValid, sendResponse, sendError } = require('../../utils');
 const Community = require('../../modules/community/model')
 const User = require('../../modules/user/model')
 
@@ -19,7 +19,16 @@ const listCommunities = async (req, res) => {
 }
 
 const detailCommunity = async (req, res) => {
-  Community.findById(req.params.communityid)
+
+  // Community identifier might be an ID or a slug, but we need the ID
+  let communityIdentifier;
+  if (isObjectIdValid(req.params.communityid)) {
+    communityIdentifier = req.params.communityid;
+  } else {
+    communityIdentifier = (await Community.findOne({ slug: req.params.communityid }))._id;
+  }
+
+  Community.findById(communityIdentifier)
     .then(community => {
       if (!community) {
         return res.status(404).send(sendError(404, 'Community not found!'));

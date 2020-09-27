@@ -1,5 +1,10 @@
 const Autolinker = require('autolinker');
 const sanitizeHtml = require('sanitize-html');
+const jsdom = require('jsdom');
+const { JSDOM } = jsdom;
+const { DOMParser } = require('prosemirror-model');
+const schema = require('./parseTextSchema');
+const parser = DOMParser.fromSchema(schema.schema);
 
 const sanitizeHTML = (html) => {
   return sanitizeHtml(html, {
@@ -38,7 +43,7 @@ const sanitizeHTML = (html) => {
   })
 }
 
-const parseText = (rawText, mentionsEnabled = true, hashtagsEnabled = true, urlsEnabled = true) => {
+const parseText = (rawText, mentionsEnabled = true, hashtagsEnabled = false, urlsEnabled = true) => {
   console.log('Parsing content')
   let splitText = rawText.split(/\r\n|\r|\n/gi).map(line => line = "<p>" + line + "</p>").filter(line => line !== '<p></p>')
   let lineCount = splitText.length
@@ -46,7 +51,7 @@ const parseText = (rawText, mentionsEnabled = true, hashtagsEnabled = true, urls
   rawText = rawText.replace(/(<p><\/p>)/g, '') // filter out blank lines
 
   const mentionRegex = /(^|[^@\w])@([\w-]{1,30})[\b-]*/g
-  const mentionReplace = '$1<a href="/$2">@$2</a>'
+  const mentionReplace = '$1<a class="mention-link" href="/$2">@$2</a>'
   const hashtagRegex = /(^|>|\n|\ |\t)#(\w{1,60})\b/g
   const hashtagReplace = '$1<a href="/tag/$2">#$2</a>'
 
@@ -77,8 +82,16 @@ const parseText = (rawText, mentionsEnabled = true, hashtagsEnabled = true, urls
     })
   }
 
+  // This parses the raw HTML text into a Prosemirror JSON object,
+  // for saving on the server.
+  const { document } = new JSDOM(rawText).window;
+  const parsedHTML = parser
+    .parse(document, { preserveWhitespace: true })
+    .toJSON();
+
   const parsedPost = {
     text: rawText,
+    json: parsedHTML,
     array: splitText,
     mentions: trimmedMentions,
     tags: trimmedTags

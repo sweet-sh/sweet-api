@@ -17,11 +17,14 @@ const authHandler = async (req, res, next) => {
   if (!verifyResult) {
     return res.status(401).send(sendError(401, 'Not authorized to access this API'))
   }
-  req.user = (await User.findOne({ _id: verifyResult.id }));
+  req.user = await User.findOne({ _id: verifyResult.id });
   if (!req.user) {
     return res.status(404).send(sendError(404, 'No matching user registered in API'))
   }
-  next()
+  // Update user's last online timestamp
+  req.user.lastOnline = Date.now();
+  req.user.save();
+  next();
 };
 
 module.exports = {

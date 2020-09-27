@@ -9,17 +9,21 @@ const mongoose = require('mongoose');
 const configDatabase = require('./config/database').config;
 const { mailer } = require('./mailer');
 const { authHandler } = require('./helpers/authHandler');
+const { scrapeURL } = require('./utils');
 
 const {
   registerExpoToken,
   register,
   login,
   listUsers,
+  listAllUsers,
   detailUser,
   reportUser,
   changeSettings,
   getCoC,
   acceptCoC,
+  deleteUser,
+  exportUserData,
 } = require('./modules/user/controller');
 const {
   listPosts,
@@ -28,6 +32,11 @@ const {
   unboostPost,
   createPost,
   createComment,
+  deleteComment,
+  subscribeToPost,
+  unsubscribeFromPost,
+  deletePost,
+  editPost,
 } = require('./modules/post/controller');
 const {
   listCommunities,
@@ -66,21 +75,35 @@ app.post('/api/register', register);
 app.post('/api/login', login);
 
 app.get('/api/posts/:context?/:timestamp?/:identifier?', listPosts);
-app.post('/api/post', createPost);
 app.post('/api/plus/:postid', plusPost);
 app.post('/api/boost/:postid/:locationid?', boostPost);
 app.post('/removeboost/:postid', unboostPost);
 app.post('/api/comment/:postid/:commentid?', createComment);
+
+app.post('/api/post', createPost);
+app.delete('/api/post', deletePost);
+app.put('/api/post', editPost);
+
+app.post('/api/comment', createComment);
+app.delete('/api/comment', deleteComment);
+
+app.post('/api/subscription', subscribeToPost);
+app.delete('/api/subscription', unsubscribeFromPost);
 
 app.get('/api/communities/all', listCommunities);
 app.get('/api/communities/:communityid', detailCommunity);
 app.post('/api/community/join', joinCommunity);
 app.post('/api/community/leave', leaveCommunity);
 
+app.get('/api/users/all', listAllUsers);
 app.get('/api/users/:sortorder', listUsers);
 app.get('/api/user/:identifier', detailUser);
 app.post('/api/settings', changeSettings);
 app.post('/api/report', reportUser);
+
+app.delete('/api/user', deleteUser);
+
+app.get('/api/user-export', exportUserData);
 
 app.post('/api/relationship', createRelationship);
 
@@ -88,6 +111,8 @@ app.get('/api/code-of-conduct', getCoC);
 app.post('/api/code-of-conduct/accept', acceptCoC);
 
 app.post('/api/image', createImage);
+
+app.post('/api/url-metadata', scrapeURL);
 
 app.listen(port);
 

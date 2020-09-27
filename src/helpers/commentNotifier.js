@@ -2,14 +2,14 @@ const User = require('../modules/user/model');
 const Relationship = require('../modules/relationship/model');
 const notifier = require('./notifier');
 
-const commentNotifier = ({ post, postAuthor, postPrivacy, commentAuthor, commentParent, parsedPayload }) => {
+const commentNotifier = ({ comment, post, postAuthor, postPrivacy, commentAuthor, commentParent, mentions }) => {
   // Notify any and all interested parties
   User.findOne({ _id: postAuthor })
     .then((originalPoster) => {
       // NOTIFY EVERYONE WHO IS MENTIONED
 
       // we're never going to notify the author of the comment about them mentioning themself
-      const workingMentions = parsedPayload.mentions.filter(m => m !== commentAuthor.username)
+      const workingMentions = mentions.filter(m => m !== commentAuthor.username)
 
       if (post.type === 'community') {
         workingMentions.forEach(function (mentionedUsername) {
@@ -103,7 +103,7 @@ const commentNotifier = ({ post, postAuthor, postPrivacy, commentAuthor, comment
 
       // NOTIFY THE POST'S AUTHOR
       // Author doesn't need to know about their own comments, and about replies on your posts they're not subscribed to, and if they're @ed they already got a notification above
-      if (!originalPoster._id.equals(commentAuthor._id) && (post.unsubscribedUsers.includes(originalPoster._id.toString()) === false) && (!parsedPayload.mentions.includes(originalPoster.username))) {
+      if (!originalPoster._id.equals(commentAuthor._id) && (post.unsubscribedUsers.includes(originalPoster._id.toString()) === false) && (!mentions.includes(originalPoster.username))) {
         console.log('Notifying post author of a reply')
         notifier.notify({
           type: 'user',
@@ -129,7 +129,7 @@ const commentNotifier = ({ post, postAuthor, postPrivacy, commentAuthor, comment
         if (
           !parentCommentAuthor._id.equals(commentAuthor._id) &&
           (!post.unsubscribedUsers.includes(parentCommentAuthor._id.toString())) &&
-          (!parsedPayload.mentions.includes(parentCommentAuthor.username)) &&
+          (!mentions.includes(parentCommentAuthor.username)) &&
           (!originalPoster._id.equals(parentCommentAuthor._id))
         ) {
           console.log('Notifying parent comment author of a reply')
@@ -161,7 +161,7 @@ const commentNotifier = ({ post, postAuthor, postPrivacy, commentAuthor, comment
               // or anyone who unsubscribed from the post
               if (!boost.booster._id.equals(commentAuthor._id) &&
                 !boost.booster._id.equals(originalPoster._id) &&
-                !parsedPayload.mentions.includes(boost.booster.username) &&
+                !mentions.includes(boost.booster.username) &&
                 !post.unsubscribedUsers.includes(boost.booster._id.toString())) {
                 notifier.notify({
                   type: 'user',
@@ -228,7 +228,7 @@ const commentNotifier = ({ post, postAuthor, postPrivacy, commentAuthor, comment
         ) {
           console.log('Notifying subscribed user')
           User.findById(subscriberID).then((subscriber) => {
-            if (!parsedPayload.mentions.includes(subscriber.username)) {
+            if (!mentions.includes(subscriber.username)) {
               // don't notify people who are going to be notified
               // anyway bc they're mentioned in the new comment
               if (post.mentions.includes(subscriber.username)) {
