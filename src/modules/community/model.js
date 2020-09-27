@@ -35,7 +35,7 @@ const communitySchema = new mongoose.Schema({
   votes: [{ type: DBReference, ref: 'Vote' }]
 })
 
-communitySchema.pre('validate', function (next) {
+communitySchema.pre('save', function (next) {
   if (this.members) {
     if (!this.votingMembersCount) { this.votingMembersCount = this.members.length }
     this.membersCount = this.members.length

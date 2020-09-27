@@ -154,6 +154,25 @@ const postSchema = new mongoose.Schema({
   seenBy: [{ type: DBReference, ref: 'User' }], // An array of users who have seen the latest version of this post, including its comments.
 });
 
+postSchema.pre('save', function (next) {
+  if (this.comments && this.comments.length) {
+    let count = this.comments.length;
+    const recursiveCount = (node) => {
+      node.forEach((subNode) => {
+        if (subNode.replies && subNode.replies.length) {
+          count = count + subNode.replies.length;
+          recursiveCount(subNode.replies);
+        }
+      });
+    };
+    recursiveCount(this.comments);
+    this.numberOfComments = count;
+  } else {
+    this.numberOfComments = 0;
+  }
+  next();
+});
+
 // used to select posts to display in feeds
 postSchema.index({ author: 1 })
 postSchema.index({ community: 1 })

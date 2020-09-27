@@ -34,9 +34,7 @@ const sendExpoNotifications = ({ pushTokens, title, body }) => {
       try {
         let receipts = await expo.sendPushNotificationsAsync(chunk);
         console.log(receipts);
-        fs.writeFile('./exporeceipts.log', receipts, (response) => {
-          console.log('Write callback response:', response)
-        });
+        fs.writeFile('./exporeceipts.log', JSON.stringify(receipts), () => {});
       } catch (error) {
         console.error(error);
       }

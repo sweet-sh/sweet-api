@@ -22,6 +22,8 @@ const {
   changeSettings,
   getCoC,
   acceptCoC,
+  deleteUser,
+  exportUserData,
 } = require('./modules/user/controller');
 const {
   listPosts,
@@ -98,6 +100,10 @@ app.get('/api/users/:sortorder', listUsers);
 app.get('/api/user/:identifier', detailUser);
 app.post('/api/settings', changeSettings);
 app.post('/api/report', reportUser);
+
+app.delete('/api/user', deleteUser);
+
+app.get('/api/user-export', exportUserData);
 
 app.post('/api/relationship', createRelationship);
 

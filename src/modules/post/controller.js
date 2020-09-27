@@ -424,51 +424,50 @@ const listPosts = async (req, res) => {
         level = 1;
       }
       element.forEach(async (comment) => {
-        // We have to parse Prosemirror JSON into HTML for the web app - see below in the
-        // post parser for an explanation
-        if (req.headers['user-agent'].includes('Expo')) {
-          const { document } = (new JSDOM(`...`)).window;
-          const div = document.createElement("div");
-          const node = Node.fromJSON(schema, comment.jsonBody);
-          const serializedFragment = serializer.serializeFragment(node, { "document": document });
-          div.appendChild(serializedFragment);
-          comment.renderedHTML = div.innerHTML;
-        }
+        if (!comment.deleted) {
+          // We have to parse Prosemirror JSON into HTML for the web app - see below in the
+          // post parser for an explanation
+          if (req.headers['user-agent'].includes('Expo')) {
+            const { document } = (new JSDOM(`...`)).window;
+            const div = document.createElement("div");
+            const node = Node.fromJSON(schema, comment.jsonBody);
+            const serializedFragment = serializer.serializeFragment(node, { "document": document });
+            div.appendChild(serializedFragment);
+            comment.renderedHTML = div.innerHTML;
+          }
 
-        comment.authorFlagged = flagged.some((v) =>
-          v.equals(comment.author._id),
-        );
-        comment.canDisplay = true;
-        comment.muted = false;
-        // I'm not sure why, but boosts in the home feed don't display
-        // comment authors below the top level - this fixes it, but
-        // it's kind of a hack - I can't work out what's going on
-        if (!comment.author.username) {
-          comment.author = await User.findById(
-            comment.author,
-            'username imageEnabled image displayName',
+          comment.authorFlagged = flagged.some((v) =>
+            v.equals(comment.author._id),
           );
-        }
-        if (myMutedUserEmails.includes(comment.author.email)) {
-          comment.muted = true;
-          comment.canDisplay = false;
-        }
-        if (comment.deleted) {
-          comment.canDisplay = false;
-        }
-        for (let i = 0; i < comment.images.length; i++) {
-          comment.images[i] = '/api/image/display/' + comment.images[i];
-        }
-        // If the comment's author is logged in, or the displayContext's author is logged in
-        if (
-          (comment.author._id.equals(req.user._id) ||
-            displayContext.author._id.equals(req.user._id)) &&
-          !comment.deleted
-        ) {
-          comment.canDelete = true;
-        }
-        if (level < 5) {
-          comment.canReply = true;
+          comment.canDisplay = true;
+          comment.muted = false;
+          // I'm not sure why, but boosts in the home feed don't display
+          // comment authors below the top level - this fixes it, but
+          // it's kind of a hack - I can't work out what's going on
+          if (!comment.author.username) {
+            comment.author = await User.findById(
+              comment.author,
+              'username imageEnabled image displayName',
+            );
+          }
+          if (myMutedUserEmails.includes(comment.author.email)) {
+            comment.muted = true;
+            comment.canDisplay = false;
+          }
+          for (let i = 0; i < comment.images.length; i++) {
+            comment.images[i] = '/api/image/display/' + comment.images[i];
+          }
+          // If the comment's author is logged in, or the displayContext's author is logged in
+          if (
+            (comment.author._id.equals(req.user._id) ||
+              displayContext.author._id.equals(req.user._id)) &&
+            !comment.deleted
+          ) {
+            comment.canDelete = true;
+          }
+          if (level < 5) {
+            comment.canReply = true;
+          }
         }
         comment.level = level;
         if (comment.replies) {
@@ -1103,6 +1102,7 @@ const createComment = async (req, res) => {
 
       post.save().then(async () => {
         commentNotifier({
+          comment,
           post,
           postAuthor: post.author,
           postPrivacy,
@@ -1218,6 +1218,7 @@ const deleteComment = async (req, res) => {
       // We feel sorry for the children - just wipe the target's memory
       target.parsedContent = '';
       target.rawContent = '';
+      target.jsonBody = null;
       target.deleted = true;
     } else {
       // There are no children, the target can be destroyed
