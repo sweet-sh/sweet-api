@@ -427,14 +427,14 @@ const listPosts = async (req, res) => {
         if (!comment.deleted) {
           // We have to parse Prosemirror JSON into HTML for the web app - see below in the
           // post parser for an explanation
-          if (req.headers['user-agent'].includes('Expo')) {
-            const { document } = (new JSDOM(`...`)).window;
-            const div = document.createElement("div");
-            const node = Node.fromJSON(schema, comment.jsonBody);
-            const serializedFragment = serializer.serializeFragment(node, { "document": document });
-            div.appendChild(serializedFragment);
-            comment.renderedHTML = div.innerHTML;
-          }
+          // if (req.headers['user-agent'].includes('Expo')) {
+          const { document } = (new JSDOM(`...`)).window;
+          const div = document.createElement("div");
+          const node = Node.fromJSON(schema, comment.jsonBody);
+          const serializedFragment = serializer.serializeFragment(node, { "document": document });
+          div.appendChild(serializedFragment);
+          comment.renderedHTML = div.innerHTML;
+          // }
 
           comment.authorFlagged = flagged.some((v) =>
             v.equals(comment.author._id),
@@ -481,14 +481,14 @@ const listPosts = async (req, res) => {
     // I hoped this would be unnecessary, but I can't find a good way for the React Native app
     // to parse PM into HTML as it doesn't have a DOM and I couldn't get JSDOM to work on it. So
     // we parse the HTML here and send it to the app.
-    if (req.headers['user-agent'].includes('Expo')) {
-      const { document } = (new JSDOM(`...`)).window;
-      const div = document.createElement("div");
-      const node = Node.fromJSON(schema, finalPost.jsonBody);
-      const serializedFragment = serializer.serializeFragment(node, { "document": document });
-      div.appendChild(serializedFragment);
-      finalPost.renderedHTML = div.innerHTML;
-    }
+    // if (req.headers['user-agent'].includes('Expo')) {
+    const { document } = (new JSDOM(`...`)).window;
+    const div = document.createElement("div");
+    const node = Node.fromJSON(schema, finalPost.jsonBody);
+    const serializedFragment = serializer.serializeFragment(node, { "document": document });
+    div.appendChild(serializedFragment);
+    finalPost.renderedHTML = div.innerHTML;
+    // }
 
 
 
