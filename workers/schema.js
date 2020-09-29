@@ -123,7 +123,7 @@ const schema = new Schema({
             const title = dom.querySelector('.link-preview-title').innerHTML;
             const description = dom.querySelector('.link-preview-description')
               .innerHTML;
-            const image = dom.querySelector('img').getAttribute('src') || null;
+            const image = dom.querySelector('img') ? dom.querySelector('img').getAttribute('src') : null;
             const domain = dom.querySelector('.link-preview-domain').innerHTML;
             return {
               url,
