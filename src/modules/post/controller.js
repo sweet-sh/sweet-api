@@ -119,6 +119,7 @@ const listPosts = async (req, res) => {
         ],
         type: { $ne: 'draft' },
       };
+      sortMethod = req.user.settings.homeTagTimelineSorting === 'fluid' ? '-lastUpdated' : '-timestamp'
       break;
     case 'user':
       // if we're on a user's page, obviously we want their posts:
@@ -139,6 +140,7 @@ const listPosts = async (req, res) => {
           },
         },
       ];
+      sortMethod = req.user.settings.userTimelineSorting === 'fluid' ? '-lastUpdated' : '-timestamp'
       break;
     case 'community':
       thisComm = await Community.findById(communityIdentifier);
@@ -154,6 +156,7 @@ const listPosts = async (req, res) => {
         // if we're not in the community and it's not public, there are no posts we're allowed to view!
         matchPosts = undefined;
       }
+      sortMethod = req.user.settings.communityTimelineSorting === 'fluid' ? '-lastUpdated' : '-timestamp'
       break;
     case 'tag':
       const getTag = () => {
@@ -162,6 +165,7 @@ const listPosts = async (req, res) => {
         });
       };
       matchPosts = await getTag();
+      sortMethod = req.user.settings.homeTagTimelineSorting === 'fluid' ? '-lastUpdated' : '-timestamp'
       break;
     case 'single':
       matchPosts = {
