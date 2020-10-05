@@ -34,9 +34,11 @@ const s3 = new aws.S3({
 
 const listPosts = async (req, res) => {
   const timestamp = req.params.timestamp
-    ? new Date(parseInt(req.params.timestamp))
+    ? new Date(parseInt(req.params.timestamp, 10))
     : Date.now();
   const postsPerPage = 20;
+
+  console.log('Listing posts!');
 
   // If we're looking for user or community posts, req.params.identifier might be a username
   // OR a MongoDB _id string. We need to work out which it is:
@@ -183,7 +185,11 @@ const listPosts = async (req, res) => {
       break;
   }
 
+  console.log(sortMethod);
+
   matchPosts[sortMethod.substring(1, sortMethod.length)] = { $lt: timestamp };
+
+  console.log(matchPosts);
 
   const query = Post.find(matchPosts)
     .sort(sortMethod)
@@ -422,6 +428,9 @@ const listPosts = async (req, res) => {
       }),
     };
 
+    // We fill this variable during the parseComments function below
+    let numberOfComments = 0;
+
     // get timestamps and full image urls for each comment
     const parseComments = (element, level) => {
       if (!level) {
@@ -472,6 +481,8 @@ const listPosts = async (req, res) => {
           if (level < 5) {
             comment.canReply = true;
           }
+          // Add to number of post comments
+          numberOfComments = numberOfComments + 1;
         }
         comment.level = level;
         if (comment.replies) {
@@ -480,6 +491,8 @@ const listPosts = async (req, res) => {
       });
     };
     parseComments(finalPost.comments);
+
+    finalPost.numberOfComments = numberOfComments;
 
     // Here we parse the Prosemirror JSON into HTML using a custom schema.
     // I hoped this would be unnecessary, but I can't find a good way for the React Native app
@@ -493,8 +506,6 @@ const listPosts = async (req, res) => {
     div.appendChild(serializedFragment);
     finalPost.renderedHTML = div.innerHTML;
     // }
-
-
 
     // wow, finally.
     displayedPosts.push(finalPost);
