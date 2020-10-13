@@ -719,8 +719,16 @@ const createPost = async (req, res) => {
   } else {
     isCommunityPost = context === 'community' && contextId !== null;
     communityId = contextId;
-    // We're doing this manually before we transition to the actual audiences API
-    parsedAudience = audience ? audience.map((o) => o.value) : [];
+    if (isCommunityPost) {
+      // const targetCommunity = await Community.findById(communityId);
+      // Apparently posts in communities are always public, I suppose because
+      // their visibility is controlled entirely by the community's visibility
+      // setting. Still a bit weird though but I guess that's how I coded it?
+      parsedAudience = ['public'];
+    } else {
+      // We're doing this manually before we transition to the actual audiences API
+      parsedAudience = audience ? audience.map((o) => o.value) : [];
+    }
     const bodyReturn = collapseImages(body);
     parsedBody = bodyReturn.parsedBody;
     extractedImages = bodyReturn.extractedImages;
