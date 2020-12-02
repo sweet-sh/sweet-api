@@ -78,13 +78,6 @@ const commentSchema = new mongoose.Schema({
 
 commentSchema.add({ replies: [commentSchema] })
 
-const boostSchema = new mongoose.Schema({
-  booster: { type: DBReference, ref: 'User', required: true },
-  community: { type: DBReference, ref: 'Community' },
-  timestamp: { type: Date, required: true },
-  boost: { type: DBReference, ref: 'Post' }
-})
-
 const plusSchema = new mongoose.Schema({
   author: { type: DBReference, ref: 'User', required: true },
   timestamp: { type: Date, required: true },
@@ -97,7 +90,7 @@ const audienceSchema = new mongoose.Schema({
 });
 
 const postSchema = new mongoose.Schema({
-  type: String, // "original", "community", or "boost". note that the equivalent "context" field in image documents stores either "user", "community", or "user"
+  type: String, // "original" or "community". note that the equivalent "context" field in image documents stores either "user" or "community".
   community: { type: DBReference, ref: 'Community' }, // hopefully undefined if type=="user"
   authorEmail: String,
   author: { type: DBReference, ref: 'User', required: true },
@@ -111,14 +104,11 @@ const postSchema = new mongoose.Schema({
   rawContent: String, // this was originally used to store plain text input i believe and then suddenly that wasn't a thing anymore and then it stored html input and now it stores a stringified object containing inlineElements objects
   parsedContent: String, // this is the field that is used to store the text contents of the post in html form and is used to generate the full post html, which is stored in cachedHTML.fullContentHTML below
   comments: [commentSchema],
-  boostTarget: { type: DBReference, ref: 'Post' },
   numberOfComments: Number,
   mentions: [String],
   tags: [String],
   pluses: [plusSchema],
   numberOfPluses: Number,
-  // boosts of this post will produce seperate post documents in the database that are linked to here. they link back to the original post through the boostTarget field.
-  boostsV2: [{ type: boostSchema, required: true }],
   contentWarnings: String,
   commentsDisabled: Boolean,
 
