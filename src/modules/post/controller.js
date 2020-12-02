@@ -11,6 +11,7 @@ const Post = require('../../modules/post/model');
 const Relationship = require('../../modules/relationship/model');
 const Tag = require('../../modules/tag/model');
 const User = require('../../modules/user/model');
+const Library = require('../../modules/library/model');
 const { canCommentOnPost } = require('./rules');
 const { collapseImages, findMentions } = require('./utils');
 
@@ -103,7 +104,7 @@ const listPosts = async (req, res) => {
   let thisComm;
   switch (req.params.context) {
     case 'home':
-      // on the home page, we're looking for posts (and boosts) created by users we follow as well as posts in communities that we're in.
+      // on the home page, we're looking for posts created by users we follow as well as posts in communities that we're in.
       // we're assuming the user is logged in if this request is being made (it's only made by code on a page that only loads if the user is logged in.)
       matchPosts = {
         $or: [
@@ -119,7 +120,6 @@ const listPosts = async (req, res) => {
             },
           },
         ],
-        type: { $ne: 'draft' },
       };
       sortMethod = req.user.settings.homeTagTimelineSorting === 'fluid' ? '-lastUpdated' : '-timestamp'
       break;
@@ -127,14 +127,14 @@ const listPosts = async (req, res) => {
       // if we're on a user's page, obviously we want their posts:
       matchPosts = {
         author: userIdentifier,
-        type: { $ne: 'draft' },
       };
       // but we also only want posts if they're non-community or they come from a community that we belong to:
       matchPosts.$or = [
         {
-          community: {
-            $exists: false,
-          },
+          $or: [
+            { community: { $exists: false } },
+            { community: null }
+          ]
         },
         {
           community: {
@@ -163,7 +163,7 @@ const listPosts = async (req, res) => {
     case 'tag':
       const getTag = () => {
         return Tag.findOne({ name: req.params.identifier }).then((tag) => {
-          return { _id: { $in: tag.posts }, type: { $ne: 'draft' } };
+          return { _id: { $in: tag.posts } };
         });
       };
       matchPosts = await getTag();
@@ -172,14 +172,19 @@ const listPosts = async (req, res) => {
     case 'single':
       matchPosts = {
         _id: req.params.identifier,
-        type: { $ne: 'draft' },
       };
       break;
     case 'url':
       matchPosts = {
         url: req.params.identifier,
-        type: { $ne: 'draft' },
       };
+      break;
+    case 'library':
+      // For a user's personal library, we just want posts in that library, so we fetch those:
+      const libraryPosts = await Library.find({ user: req.user._id }, { post: 1 });
+      matchPosts = {
+        _id: { $in: libraryPosts.map(o => o.post) }
+      }
       break;
     default:
       break;
@@ -188,6 +193,8 @@ const listPosts = async (req, res) => {
   console.log(sortMethod);
 
   matchPosts[sortMethod.substring(1, sortMethod.length)] = { $lt: timestamp };
+
+  matchPosts.type = { $nin: ['draft', 'boost'] };
 
   console.log(matchPosts);
 
@@ -217,12 +224,6 @@ const listPosts = async (req, res) => {
     .populate(
       'comments.replies.replies.replies.replies.author',
       'username imageEnabled image displayName',
-    )
-    .populate('boostTarget')
-    .populate('boostsV2.booster', 'username imageEnabled image displayName')
-    .populate(
-      'boostsV2.community',
-      'name slug url imageEnabled image mutedMembers settings',
     );
 
   // so this will be called when the query retrieves the posts we want
@@ -234,77 +235,7 @@ const listPosts = async (req, res) => {
 
   const displayedPosts = []; // populated by the for loop below
 
-  let whosePostsCount;
-  if (req.params.context === 'user') {
-    whosePostsCount = [ObjectId(userIdentifier)];
-  } else if (req.params.context === 'home') {
-    whosePostsCount = myFollowedUserIds;
-  } else if (req.params.context === 'community') {
-    whosePostsCount = thisComm.members;
-  }
-
   for (const post of posts) {
-    // console.log('Processing', post._id)
-    // figure out if there is a newer instance of the post we're looking at. if it's an original post, check the boosts from
-    // the context's relevant users; if it's a boost, check the original post if we're in fluid mode to see if lastUpdated is more
-    // recent (meaning the original was bumped up from recieving a comment) and then for both fluid and chronological we have to check
-    // to see if there is a more recent boost.
-    let newestVersion = post;
-    let boostBlame;
-    if (req.params.context !== 'single' && req.params.context !== 'tag') {
-      let isThereNewerInstance = false;
-      if (post.type === 'original') {
-        // console.log("An OG post!", post.rawContent)
-        for (const boost of post.boostsV2) {
-          if (
-            boost.timestamp.getTime() > post.lastUpdated.getTime() &&
-            whosePostsCount.some((f) => boost.booster.equals(f))
-          ) {
-            // console.log("Got newer boost!", post.rawContent)
-            isThereNewerInstance = true;
-            newestVersion = boost;
-          } else {
-            // console.log("Boost older")
-          }
-        }
-      } else if (post.type === 'boost') {
-        if (post.boostTarget !== null) {
-          // console.log("A boost!", post.boostTarget.rawContent)
-          if (
-            post.boostTarget.lastUpdated.getTime() > post.timestamp.getTime()
-          ) {
-            // console.log("Got newer OG post!", post.boostTarget.rawContent)
-            isThereNewerInstance = true;
-            newestVersion = post.boostTarget;
-          } else {
-            // console.log("OG post older")
-          }
-          for (const boost of post.boostTarget.boostsV2) {
-            if (
-              boost.timestamp.getTime() > post.lastUpdated.getTime() &&
-              whosePostsCount.some((f) => boost.booster.equals(f))
-            ) {
-              // console.log("Got newer other boost!", post.boostTarget.rawContent)
-              isThereNewerInstance = true;
-              newestVersion = boost;
-            } else {
-              // console.log("Other boosts older")
-            }
-          }
-        } else {
-          // console.log('Error fetching boostTarget of boost');
-          isThereNewerInstance = true;
-        }
-      }
-
-      if (isThereNewerInstance) {
-        // console.log("HIDING THIS POST")
-        // console.log("====================================")
-        continue;
-      }
-      // console.log("====================================")
-    }
-
     let canDisplay = false;
     // logged in users can't see private posts by users who don't trust them or community posts by muted members
     if (
@@ -342,7 +273,7 @@ const listPosts = async (req, res) => {
       }
     }
 
-    // As a final hurrah, just hide all posts and boosts made by users you've muted
+    // As a final hurrah, just hide all posts made by users you've muted
     if (myMutedUserEmails.includes(post.author.email)) {
       canDisplay = false;
     }
@@ -352,78 +283,26 @@ const listPosts = async (req, res) => {
       continue;
     }
 
-    let displayContext;
-    if (post.type === 'boost') {
-      displayContext = post.boostTarget;
-      displayContext.author = await User.findById(
-        displayContext.author,
-        'username imageEnabled image displayName',
-      );
-      displayContext.community = await Community.findById(
-        post.community,
-        'name slug url imageEnabled image mutedMembers settings',
-      );
-      for (const boost of displayContext.boostsV2) {
-        boost.booster = await User.findById(
-          boost.booster,
-          'username imageEnabled image displayName',
-        );
-        boost.community = await Community.findById(
-          boost.community,
-          'name slug url imageEnabled image mutedMembers settings',
-        );
-      }
-      displayContext.type = 'boost';
-
-      // We construct some 'boost blame' information - explaining to the user why they're seeing a post on their feed.
-      // The possible options are:
-      // - If on a user's feed: because they boosted this post onto their feed. ({ reason: 'userBoost', culprit: userIdentifier })
-      // - If in a community: because someone in this community boosted this post onto their feed ({ reason: 'communityBoost', culprit: booster._id })
-      // - If on the general feed: because someone you follow boosted this post onto their feed ({ reason: 'followBoost', culprit: booster._id })
-      // - Anywhere: because you boosted this post ({ reason: 'ownBoost', culprit: req.user._id })
-      // Remember: `displayContext` for here is always the original boosted post, not the boost itself!
-      // The boost itself is at `post`.
-      // console.log('+++++++++++++++++++++')
-      // console.log(newestVersion)
-      // console.log('+++++++++++++++++++++')
-      // First check if you're the post's booster
-      if (newestVersion.author._id.equals(req.user._id)) {
-        boostBlame = { reason: 'ownBoost', culprit: newestVersion.author };
-      } else {
-        if (req.params.context === 'user') {
-          boostBlame = { reason: 'userBoost', culprit: newestVersion.author };
-        } else if (req.params.context === 'community') {
-          boostBlame = {
-            reason: 'communityBoost',
-            culprit: newestVersion.author,
-          };
-        } else if (req.params.context === 'home') {
-          boostBlame = { reason: 'followBoost', culprit: newestVersion.author };
-        }
-      }
-    } else {
-      displayContext = post;
-    }
-
     // Used to check if you can delete a post
-    let isYourPost = displayContext.author._id.equals(req.user._id);
+    let isYourPost = post.author._id.equals(req.user._id);
+
+    let inLibrary = await Library.findOne({ user: req.user._id, post: post._id }) ? true : false;
 
     let finalPost = {
       // This is necessary otherwise Mongoose keeps holding onto the object
       // and won't let us add properties to it
-      ...displayContext.toObject(),
-      deleteid: displayContext._id,
-      havePlused: displayContext.pluses.some((plus) =>
+      ...post.toObject(),
+      deleteid: post._id,
+      havePlused: post.pluses.some((plus) =>
         plus.author._id.equals(req.user._id),
       ),
-      isYourPost: isYourPost,
+      inLibrary,
+      isYourPost,
       viewingContext: req.params.context,
-      // youBoosted: youBoosted,
-      authorFlagged: flagged.some((v) => v.equals(displayContext.author._id)),
-      boostBlame: displayContext.type === 'boost' ? boostBlame : undefined,
+      authorFlagged: flagged.some((v) => v.equals(post.author._id)),
       canReply: canCommentOnPost({
         user: req.user,
-        post: displayContext,
+        post: post,
         communityId: req.params.identifier,
       }),
     };
@@ -454,15 +333,6 @@ const listPosts = async (req, res) => {
           );
           comment.canDisplay = true;
           comment.muted = false;
-          // I'm not sure why, but boosts in the home feed don't display
-          // comment authors below the top level - this fixes it, but
-          // it's kind of a hack - I can't work out what's going on
-          if (!comment.author.username) {
-            comment.author = await User.findById(
-              comment.author,
-              'username imageEnabled image displayName',
-            );
-          }
           if (myMutedUserEmails.includes(comment.author.email)) {
             comment.muted = true;
             comment.canDisplay = false;
@@ -470,10 +340,10 @@ const listPosts = async (req, res) => {
           for (let i = 0; i < comment.images.length; i++) {
             comment.images[i] = '/api/image/display/' + comment.images[i];
           }
-          // If the comment's author is logged in, or the displayContext's author is logged in
+          // If the comment's author is logged in, or the post's author is logged in
           if (
             (comment.author._id.equals(req.user._id) ||
-              displayContext.author._id.equals(req.user._id)) &&
+              post.author._id.equals(req.user._id)) &&
             !comment.deleted
           ) {
             comment.canDelete = true;
@@ -567,97 +437,6 @@ const plusPost = async (req, res) => {
         .status(500)
         .send(sendError(500, 'Error fetching post to plus'));
     });
-};
-
-const boostPost = async (req, res) => {
-  let isCommunityBoost = false;
-  let boostCommunity;
-  const boostedTimestamp = new Date();
-  const boostedPost = await Post.findById(req.params.postid).populate('author');
-  if (!boostedPost) {
-    return res.status(404).send(sendError(404, 'Post not found.'));
-  }
-  if (boostedPost.privacy !== 'public') {
-    return res
-      .status(401)
-      .send(sendError(401, 'Not authorised to boost this post.'));
-  }
-  if (req.params.locationid) {
-    boostCommunity = await Community.findById(req.params.locationid);
-    if (!boostCommunity) {
-      return res.status(404).send(sendError(404, 'Community not found.'));
-    }
-    isCommunityBoost = true;
-  }
-  const boost = new Post({
-    type: 'boost',
-    community: isCommunityBoost ? boostCommunity._id : undefined,
-    author: req.user._id,
-    url: nanoid(),
-    privacy: 'public',
-    timestamp: boostedTimestamp,
-    lastUpdated: boostedTimestamp,
-    boostTarget: boostedPost._id,
-  });
-  boost.save().then((savedBoost) => {
-    const boost = {
-      booster: req.user._id,
-      community: isCommunityBoost ? boostCommunity._id : undefined,
-      timestamp: boostedTimestamp,
-      boost: savedBoost._id,
-    };
-    boostedPost.boostsV2 = boostedPost.boostsV2.filter(
-      (boost) => !boost.booster.equals(req.user._id),
-    );
-    boostedPost.boostsV2.push(boost);
-    boostedPost.save().then((boostedPost) => {
-      // don't notify the original post's author if they're creating the boost or are unsubscribed from this post
-      if (
-        !boostedPost.unsubscribedUsers.includes(
-          boostedPost.author._id.toString(),
-        ) &&
-        !boostedPost.author._id.equals(req.user._id)
-      ) {
-        notifier.notify({
-          type: 'user',
-          cause: 'boost',
-          notifieeID: boostedPost.author._id,
-          sourceId: req.user._id,
-          subjectId: null,
-          url: '/' + boostedPost.author.username + '/' + boostedPost.url,
-          context: 'post',
-        });
-      }
-      return res
-        .status(200)
-        .send(sendResponse({ boosts: boostedPost.boosts }, 200));
-    });
-  });
-};
-
-const unboostPost = async (req, res) => {
-  Post.findOne(
-    { _id: req.params.postid },
-    { boostsV2: 1, privacy: 1, author: 1, url: 1, timestamp: 1 },
-  ).then((boostedPost) => {
-    const boost = boostedPost.boostsV2.find((b) => {
-      return b.booster.equals(req.user._id);
-    });
-    boostedPost.boostsV2 = boostedPost.boostsV2.filter((boost) => {
-      return !boost.booster.equals(req.user._id);
-    });
-    Post.deleteOne(
-      {
-        _id: boost.boost,
-      },
-      function () {
-        console.log('delete');
-      },
-    );
-    boostedPost.save().then(() => {
-      res.redirect('back');
-    });
-  });
 };
 
 const createPost = async (req, res) => {
@@ -1284,9 +1063,6 @@ const unsubscribeFromPost = (req, res) => {
   Post.findOne({
     _id: req.body.postId,
   }).then(async (post) => {
-    if (post.type === 'boost') {
-      post = await Post.findById(post.boostTarget)
-    }
     post.subscribedUsers.pull(req.user._id)
     post.unsubscribedUsers.push(req.user._id)
     post.save()
@@ -1304,9 +1080,6 @@ const subscribeToPost = (req, res) => {
   Post.findOne({
     _id: req.body.postId,
   }).then(async (post) => {
-    if (post.type === 'boost') {
-      post = await Post.findById(post.boostTarget);
-    }
     post.unsubscribedUsers.pull(req.user._id);
     post.subscribedUsers.push(req.user._id);
     post
@@ -1353,19 +1126,6 @@ const deletePost = async (req, res) => {
         })
         .catch((err) => {
           console.log('Database error while attempting to delete post from tag:', err)
-        });
-    });
-  }
-
-  // Delete boosts
-  if (post.type === 'original' && post.boostsV2) {
-    post.boostsV2.forEach((boostDocument) => {
-      Post.deleteOne({ _id: boostDocument.boost })
-        .then((deletedBoost) => {
-          console.log(`Deleted boost: ${deletedBoost}`)
-        })
-        .catch((err) => {
-          console.log('Database error while attempting to delete boost while deleting post:', err);
         });
     });
   }
@@ -1533,12 +1293,6 @@ const editPost = async (req, res) => {
       'comments.replies.replies.replies.replies.author',
       'username imageEnabled image displayName',
     )
-    .populate('boostTarget')
-    .populate('boostsV2.booster', 'username imageEnabled image displayName')
-    .populate(
-      'boostsV2.community',
-      'name slug url imageEnabled image mutedMembers settings',
-    )
     .then((response) => {
       response.canReply = true;
       response.isYourPost = true;
@@ -1549,8 +1303,6 @@ const editPost = async (req, res) => {
 module.exports = {
   listPosts,
   plusPost,
-  boostPost,
-  unboostPost,
   createPost,
   createComment,
   deleteComment,
