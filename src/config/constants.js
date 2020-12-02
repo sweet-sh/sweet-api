@@ -271,6 +271,7 @@ exports.reservedUsernames = [
   'last',
   'ldap-status',
   'legal',
+  'library',
   'license',
   'link',
   'links',
