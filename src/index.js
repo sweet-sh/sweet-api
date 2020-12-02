@@ -28,8 +28,6 @@ const {
 const {
   listPosts,
   plusPost,
-  boostPost,
-  unboostPost,
   createPost,
   createComment,
   deleteComment,
@@ -45,7 +43,8 @@ const {
   leaveCommunity,
 } = require('./modules/community/controller');
 const { createRelationship } = require('./modules/relationship/controller');
-const { createImage } = require('./modules/image/controller');
+const { createImage, rotateImage } = require('./modules/image/controller');
+const { addToLibrary, removeFromLibrary } = require('./modules/library/controller');
 
 const app = express();
 const port = process.env.PORT || 8787;
@@ -76,8 +75,6 @@ app.post('/api/login', login);
 
 app.get('/api/posts/:context?/:timestamp?/:identifier?', listPosts);
 app.post('/api/plus/:postid', plusPost);
-app.post('/api/boost/:postid/:locationid?', boostPost);
-app.post('/removeboost/:postid', unboostPost);
 app.post('/api/comment/:postid/:commentid?', createComment);
 
 app.post('/api/post', createPost);
@@ -111,8 +108,12 @@ app.get('/api/code-of-conduct', getCoC);
 app.post('/api/code-of-conduct/accept', acceptCoC);
 
 app.post('/api/image', createImage);
+app.post('/api/image/rotate', rotateImage);
 
 app.post('/api/url-metadata', scrapeURL);
+
+app.post('/api/library', addToLibrary);
+app.delete('/api/library', removeFromLibrary);
 
 app.listen(port);
 
