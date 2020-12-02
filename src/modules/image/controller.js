@@ -61,10 +61,10 @@ const processImage = async ({ file, prefix, imageQualitySettings }) => {
     // No processing happens to GIFs - if they're under 5MB in size, they're simply uploaded
     finalFormat = 'gif'
   } else if (['jpeg', 'jpg', 'png'].includes(imageFormat)) {
-    sharpImage = sharpImage.resize({
+    sharpImage = sharpImage.rotate().resize({
       width: imageQualitySettings.resize,
       withoutEnlargement: true
-    }).rotate()
+    })
     if (imageFormat === 'png') {
       // Prevent PNG transparency - fill it with white
       sharpImage = sharpImage.flatten({ background: { r: 255, g: 255, b: 255 } })
@@ -88,7 +88,7 @@ const processImage = async ({ file, prefix, imageQualitySettings }) => {
   const uploadResponse = await uploadImage(imageBuffer, imageKey)
   if (uploadResponse) {
     // The image has been uploaded successfully!
-    let thumbnail = sharp(file.path).resize({ height: 60, withoutEnlargement: true }).rotate().jpeg()
+    let thumbnail = sharp(file.path).rotate().resize({ height: 60, withoutEnlargement: true }).jpeg()
     thumbnail = await thumbnail.toBuffer()
     const responsePayload = {
       imageKey: imageKey,
@@ -131,6 +131,45 @@ const createImage = async (req, res) => {
   // }
 }
 
+const rotateImage = async (req, res) => {
+  const key = req.body.key;
+  const angle = req.body.direction === 'cw' ? 90 : -90;
+  const s3Params = {
+    Bucket: 'sweet-images',
+    Key: key,
+  }
+  s3.headObject(s3Params)
+    .promise()
+    .then(async () => {
+      const data = await s3.getObject(s3Params).promise();
+      let imageBuffer = await sharp(data.Body).rotate(angle).toBuffer();
+      // Generate the image buffer
+      // const imageBuffer = await sharpImage.toBuffer()
+      // Upload to S3
+      const uploadResponse = await uploadImage(imageBuffer, key)
+      if (uploadResponse) {
+        // The image has been uploaded successfully!
+        let thumbnail = sharp(imageBuffer).resize({ height: 60, withoutEnlargement: true }).jpeg()
+        thumbnail = await thumbnail.toBuffer()
+        const responsePayload = {
+          imageKey: key,
+          thumbnail: `data:image/jpeg;base64,${thumbnail.toString('base64')}`
+        }
+        return res.status(200).send(sendResponse(responsePayload, 200));
+      } else {
+        // Error during upload
+        return res.status(500).send(sendError(500, 'Error uploading to S3 bucket' ));
+      }
+    })
+    .catch(error => {
+      console.log(error);
+      if (error.statusCode === 404) {
+        return res.status(404).send(sendError(500, 'No such key' ));
+      }
+    });
+}
+
 module.exports = {
-  createImage
+  createImage,
+  rotateImage,
 }
