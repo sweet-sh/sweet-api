@@ -40,11 +40,7 @@ const registerExpoToken = async (req, res) => {
   if (!verifyPushToken(req.body.token)) {
     return res.status(400).send(sendError(400, 'Token invalid'));
   }
-  const user = User.findOne({ _id: req.user._id });
-  console.log(user);
-  if (!user) {
-    return res.status(500).send(sendError(500, 'No matching user to save token'));
-  }
+  const user = await User.findOne({ _id: req.user._id });
   user.expoPushTokens.push(req.body.token);
   await user.save()
     .catch(error => {
