@@ -305,6 +305,7 @@ const listPosts = async (req, res) => {
         post: post,
         communityId: req.params.identifier,
       }),
+      boostsV2: [], // Workaround for older versions of the Sweet app trying to fetch boosts
     };
 
     // We fill this variable during the parseComments function below
