@@ -40,7 +40,7 @@ const registerExpoToken = async (req, res) => {
   if (!verifyPushToken(req.body.token)) {
     return res.status(400).send(sendError(400, 'Token invalid'));
   }
-  const user = User.find({ _id: req.user._id });
+  const user = User.findOne({ _id: req.user._id });
   user.expoPushTokens.push(req.body.token);
   await user.save()
     .catch(error => {
