@@ -12,6 +12,7 @@ const Relationship = require('../../modules/relationship/model');
 const Tag = require('../../modules/tag/model');
 const User = require('../../modules/user/model');
 const Library = require('../../modules/library/model');
+const Audience = require('../../modules/audience/model');
 const { canCommentOnPost } = require('./rules');
 const { collapseImages, findMentions } = require('./utils');
 
@@ -72,20 +73,26 @@ const listPosts = async (req, res) => {
   const myMutedUserEmails = (
     await Relationship.find({ from: req.user.email, value: 'mute' })
   ).map((v) => v.to);
-  const myTrustedUserEmails = (
-    await Relationship.find({ from: req.user.email, value: 'trust' })
-  ).map((v) => v.to);
-  const usersFlaggedByMyTrustedUsers = (
-    await Relationship.find({
-      fromUser: { $in: myFlaggedUsers },
-      value: 'flag',
-    })
-  ).map((v) => v.toUser);
-  const usersWhoTrustMeEmails = (
-    await Relationship.find({ to: req.user.email, value: 'trust' })
-  )
-    .map((v) => v.from)
-    .concat([req.user.email]);
+  // const myTrustedUserEmails = (
+  //   await Relationship.find({ from: req.user.email, value: 'trust' })
+  // ).map((v) => v.to);
+  // const usersFlaggedByMyTrustedUsers = (
+  //   await Relationship.find({
+  //     fromUser: { $in: myFlaggedUsers },
+  //     value: 'flag',
+  //   })
+  // ).map((v) => v.toUser);
+  // const usersWhoTrustMeEmails = (
+  //   await Relationship.find({ to: req.user.email, value: 'trust' })
+  // )
+  //   .map((v) => v.from)
+  //   .concat([req.user.email]);
+
+  const audiencesToWhichIBelong = (await Audience.find({ users: req.user._id }, { _id: 1 })).map(o => o._id);
+
+  console.log('Audiences to which I belong:');
+  console.log(audiencesToWhichIBelong);
+
   const myCommunities = req.user.communities;
   let isMuted;
   if (req.params.context === 'community') {
@@ -95,9 +102,11 @@ const listPosts = async (req, res) => {
   } else {
     isMuted = false;
   }
-  const flagged = usersFlaggedByMyTrustedUsers
-    .concat(myFlaggedUsers)
-    .filter((e) => e !== req.user._id);
+  // DEBUG - who can see flagged users?
+  // const flagged = usersFlaggedByMyTrustedUsers
+  //   .concat(myFlaggedUsers)
+  //   .filter((e) => e !== req.user._id);
+  const flagged = null;
 
   let matchPosts;
   let sortMethod = '-lastUpdated';
@@ -105,13 +114,12 @@ const listPosts = async (req, res) => {
   switch (req.params.context) {
     case 'home':
       // on the home page, we're looking for posts created by users we follow as well as posts in communities that we're in.
-      // we're assuming the user is logged in if this request is being made (it's only made by code on a page that only loads if the user is logged in.)
+      // we're assuming the user is logged in if this request is being made (it's made by code on a page that only loads
+      // if the user is logged in.)
       matchPosts = {
         $or: [
           {
-            author: {
-              $in: myFollowedUserIds,
-            },
+            author: { $in: myFollowedUserIds }
           },
           {
             type: 'community',
@@ -120,6 +128,7 @@ const listPosts = async (req, res) => {
             },
           },
         ],
+        audiences: { $in: audiencesToWhichIBelong }
       };
       sortMethod = req.user.settings.homeTagTimelineSorting === 'fluid' ? '-lastUpdated' : '-timestamp'
       break;
@@ -127,6 +136,7 @@ const listPosts = async (req, res) => {
       // if we're on a user's page, obviously we want their posts:
       matchPosts = {
         author: userIdentifier,
+        audiences: { $in: audiencesToWhichIBelong }
       };
       // but we also only want posts if they're non-community or they come from a community that we belong to:
       matchPosts.$or = [
@@ -156,14 +166,14 @@ const listPosts = async (req, res) => {
         };
       } else {
         // if we're not in the community and it's not public, there are no posts we're allowed to view!
-        matchPosts = undefined;
+        matchPosts = {};
       }
       sortMethod = req.user.settings.communityTimelineSorting === 'fluid' ? '-lastUpdated' : '-timestamp'
       break;
     case 'tag':
       const getTag = () => {
         return Tag.findOne({ name: req.params.identifier }).then((tag) => {
-          return { _id: { $in: tag.posts } };
+          return { _id: { $in: tag.posts }, audiences: { $in: audiencesToWhichIBelong } };
         });
       };
       matchPosts = await getTag();
@@ -172,25 +182,28 @@ const listPosts = async (req, res) => {
     case 'single':
       matchPosts = {
         _id: req.params.identifier,
+        audiences: { $in: audiencesToWhichIBelong }
       };
       break;
     case 'url':
       matchPosts = {
         url: req.params.identifier,
+        audiences: { $in: audiencesToWhichIBelong }
       };
       break;
     case 'library':
       // For a user's personal library, we just want posts in that library, so we fetch those:
       const libraryPosts = await Library.find({ user: req.user._id }, { post: 1 });
       matchPosts = {
-        _id: { $in: libraryPosts.map(o => o.post) }
+        _id: { $in: libraryPosts.map(o => o.post) },
+        audiences: { $in: audiencesToWhichIBelong }
       }
       break;
     default:
       break;
   }
 
-  console.log(sortMethod);
+  console.log(matchPosts);
 
   matchPosts[sortMethod.substring(1, sortMethod.length)] = { $lt: timestamp };
 
@@ -237,14 +250,7 @@ const listPosts = async (req, res) => {
 
   for (const post of posts) {
     let canDisplay = false;
-    // logged in users can't see private posts by users who don't trust them or community posts by muted members
-    if (
-      (post.privacy === 'private' &&
-        usersWhoTrustMeEmails.includes(post.author.email)) ||
-      post.privacy === 'public'
-    ) {
-      canDisplay = true;
-    }
+    // Users can't see community posts by muted members
     if (post.type === 'community') {
       // we don't have to check if the user is in the community before displaying posts to them if we're on the community's page, or if it's a single post page and: the community is public or the user wrote the post
       // in other words, we do have to check if the user is in the community if those things aren't true, hence the !
@@ -442,7 +448,7 @@ const plusPost = async (req, res) => {
 
 const createPost = async (req, res) => {
   console.log(req.body);
-  const { source, context, contextId, body, contentWarning, tags, audience } = req.body;
+  const { source, context, contextId, body, contentWarning, tags, audiences } = req.body;
 
   if (!body) {
     return res.status(404).send(sendError(404, 'Post content empty'));
@@ -451,7 +457,7 @@ const createPost = async (req, res) => {
   // Posts sent by the mobile app have a different payload
   let isCommunityPost;
   let communityId;
-  let parsedAudience;
+  let parsedAudiences;
   let parsedBody;
   let extractedImages;
   let parsedMentions;
@@ -464,10 +470,11 @@ const createPost = async (req, res) => {
         ? contextId
         : req.body.communityId
       : undefined;
-    // We're doing this manually before we transition to the actual audiences API
-    parsedAudience = [req.body.isPrivate ? 'private' : 'public'];
+    // The Audience of posts in communities is always null, because
+    // it's ultimately controlled by the visibility settings of the community.
+    parsedAudiences = isCommunityPost ? null : parsedPayload.audiences.map(o => o._id);
     parsedBody = parsedPayload.json;
-    // Manually creating a parsable array out of what the mobile app sends
+    // Manually creating a parseable array out of what the mobile app sends
     extractedImages = req.body.images ? req.body.images.map((s) => ({ src: `images/${s}`, alt: null })) : [];
     if (extractedImages.length) {
       console.log("Let's go!");
@@ -483,7 +490,6 @@ const createPost = async (req, res) => {
           return all;
         }, []);
       };
-      console.log(JSON.stringify(parsedBody));
       const chunks = chunkArray(extractedImages, 4);
       chunks.forEach((chunk) => {
         const galleryObject = {
@@ -493,22 +499,14 @@ const createPost = async (req, res) => {
         parsedBody.content.push(galleryObject);
       });
     }
-    console.log(JSON.stringify(parsedBody));
     parsedMentions = parsedPayload.mentions;
     parsedTags = parsedPayload.tags;
   } else {
     isCommunityPost = context === 'community' && contextId !== null;
     communityId = contextId;
-    if (isCommunityPost) {
-      // const targetCommunity = await Community.findById(communityId);
-      // Apparently posts in communities are always public, I suppose because
-      // their visibility is controlled entirely by the community's visibility
-      // setting. Still a bit weird though but I guess that's how I coded it?
-      parsedAudience = ['public'];
-    } else {
-      // We're doing this manually before we transition to the actual audiences API
-      parsedAudience = audience ? audience.map((o) => o.value) : [];
-    }
+    // The Audience of posts in communities is always null, because
+    // it's ultimately controlled by the visibility settings of the community.
+    parsedAudiences = isCommunityPost ? null : audiences.map(o => o._id);
     const bodyReturn = collapseImages(body);
     parsedBody = bodyReturn.parsedBody;
     extractedImages = bodyReturn.extractedImages;
@@ -524,8 +522,7 @@ const createPost = async (req, res) => {
     community: communityId,
     author: req.user._id,
     url: newPostUrl,
-    audiences: parsedAudience,
-    privacy: parsedAudience.includes('public') ? 'public' : 'private',
+    audiences: parsedAudiences,
     timestamp: postCreationTime,
     lastUpdated: postCreationTime,
     numberOfComments: 0,
@@ -536,8 +533,6 @@ const createPost = async (req, res) => {
     jsonBody: parsedBody,
   });
 
-  console.log(post);
-
   const newPostId = post._id;
 
   if (extractedImages && extractedImages.length) {
@@ -546,7 +541,7 @@ const createPost = async (req, res) => {
         context: isCommunityPost ? 'community' : 'user',
         filename: attrs.src,
         url: `https://sweet-images.s3.eu-west-2.amazonaws.com/${attrs.src}`,
-        privacy: parsedAudience.includes('public') ? 'public' : 'private',
+        audiences: parsedAudiences,
         user: req.user._id,
         post: newPostId,
       });
@@ -554,41 +549,24 @@ const createPost = async (req, res) => {
     });
   }
 
-
+  // TEST AND DEBUG!
+  const postAudiences = await Audience.find({ _id: { $in: post.audiences } });
   for (const mention of parsedMentions) {
     if (mention !== req.user.username) {
       User.findOne({ username: mention }).then(async (mentioned) => {
-        if (isCommunityPost) {
-          if (mentioned.communities.some((v) => v.equals(post.community))) {
-            notifier.notify({
-              type: 'user',
-              cause: 'mention',
-              notifieeID: mentioned._id,
-              sourceId: req.user._id,
-              subjectId: newPostId,
-              url: `/${req.user.username}/${newPostUrl}`,
-              context: 'post',
-            });
-          }
-        } else if (parsedAudience.includes('public') === false) {
-          if (
-            await Relationship.findOne({
-              value: 'trust',
-              fromUser: req.user._id,
-              toUser: mentioned._id,
-            })
-          ) {
-            notifier.notify({
-              type: 'user',
-              cause: 'mention',
-              notifieeID: mentioned._id,
-              sourceId: req.user._id,
-              subjectId: newPostId,
-              url: `/${req.user.username}/${newPostUrl}`,
-              context: 'post',
-            });
-          }
-        } else {
+        if (isCommunityPost && mentioned.communities.some((v) => v.equals(post.community))) {
+          console.log("Mentioned user is in the same community as the post was posted in");
+          notifier.notify({
+            type: 'user',
+            cause: 'mention',
+            notifieeID: mentioned._id,
+            sourceId: req.user._id,
+            subjectId: newPostId,
+            url: `/${req.user.username}/${newPostUrl}`,
+            context: 'post',
+          });
+        } else if (postAudiences.some(o => o.users.includes(mentioned._id))) {
+          console.log("Mentioned user is in one of the post's audiences");
           notifier.notify({
             type: 'user',
             cause: 'mention',
@@ -626,129 +604,6 @@ const createPost = async (req, res) => {
     .save()
     .then((response) => res.status(200).send(sendResponse(response, 200)));
 };
-
-// const createPostV1 = async (req, res) => {
-//   const postContent = req.body.content;
-//   const {
-//     contentWarning,
-//     isPrivate,
-//     isCommunityPost,
-//     isDraft,
-//   } = req.body;
-
-//   if (!postContent) {
-//     return res.status(404).send(sendError(404, 'Post content empty'));
-//   }
-//   const parsedPayload = parseText(postContent);
-//   const inlineElements = {
-//     type: 'image(s)',
-//     images: req.body.images,
-//     position: parsedPayload.array.length, // At the end of the post
-//   };
-
-//   const newPostUrl = nanoid();
-//   const postCreationTime = new Date();
-
-//   const post = new Post({
-//     type: isCommunityPost ? 'community' : isDraft ? 'draft' : 'original',
-//     community: isCommunityPost ? req.body.communityId : undefined,
-//     authorEmail: req.user.email,
-//     author: req.user._id,
-//     url: newPostUrl,
-//     // Community posts are always public, drafts are always private, otherwise we check the privacy setting
-//     privacy: isCommunityPost ? 'public' : isDraft ? 'private' : isPrivate ? 'private' : 'public',
-//     timestamp: postCreationTime,
-//     lastUpdated: postCreationTime,
-//     rawContent: req.body.content,
-//     parsedContent: parsedPayload.text,
-//     numberOfComments: 0,
-//     mentions: parsedPayload.mentions,
-//     tags: parsedPayload.tags,
-//     contentWarnings: contentWarning,
-//     imageVersion: 3,
-//     inlineElements: req.body.images ? inlineElements : undefined,
-//     subscribedUsers: [req.user._id],
-//   });
-
-//   if (req.body.images) {
-//     req.body.images.forEach(async (filename) => {
-//       const image = new Image({
-//         context: isCommunityPost ? 'community' : 'user',
-//         filename: `images/${filename}`,
-//         url: `https://sweet-images.s3.eu-west-2.amazonaws.com/images/${filename}`,
-//         privacy: isPrivate ? 'private' : 'public',
-//         user: req.user._id,
-//         // DEBUG: NOT YET ENABLED
-//         // quality: postImageQuality,
-//         // height: metadata.height,
-//         // width: metadata.width
-//       });
-//       await image.save();
-//     });
-//   }
-
-//   const newPostId = post._id
-
-//   for (const mention of parsedPayload.mentions) {
-//     if (mention !== req.user.username) {
-//       User.findOne({ username: mention }).then(async mentioned => {
-//         if (isCommunityPost) {
-//           if (mentioned.communities.some(v => v.equals(post.community))) {
-//             notifier.notify({
-//               type: 'user',
-//               cause: 'mention',
-//               notifieeID: mentioned._id,
-//               sourceId: req.user._id,
-//               subjectId: newPostId,
-//               url: '/' + req.user.username + '/' + newPostUrl,
-//               context: 'post',
-//             })
-//           }
-//         } else if (req.body.postPrivacy === 'private') {
-//           if (await Relationship.findOne({ value: 'trust', fromUser: req.user._id, toUser: mentioned._id })) {
-//             notifier.notify({
-//               type: 'user',
-//               cause: 'mention',
-//               notifieeID: mentioned._id,
-//               sourceId: req.user._id,
-//               subjectId: newPostId,
-//               url: '/' + req.user.username + '/' + newPostUrl,
-//               context: 'post',
-//             })
-//           }
-//         } else {
-//           notifier.notify({
-//             type: 'user',
-//             cause: 'mention',
-//             notifieeID: mentioned._id,
-//             sourceId: req.user._id,
-//             subjectId: newPostId,
-//             url: '/' + req.user.username + '/' + newPostUrl,
-//             context: 'post',
-//           })
-//         }
-//       })
-//     }
-//   }
-
-//   for (const tag of parsedPayload.tags) {
-//     Tag.findOneAndUpdate(
-//       { name: tag },
-//       { $push: { posts: newPostId.toString() }, $set: { lastUpdated: postCreationTime } },
-//       { upsert: true, new: true },
-//       () => { }
-//     )
-//   }
-
-//   if (isCommunityPost) {
-//     Community.findOneAndUpdate({ _id: req.body.communityId }, { $set: { lastUpdated: new Date() } })
-//   }
-
-//   await post.save()
-//     .then((response) => {
-//       return res.status(200).send(sendResponse(response, 200));
-//     });
-// }
 
 const createComment = async (req, res) => {
   // loop over the array of comments adding 1 +  countComments on its replies to the count variable.
@@ -843,14 +698,13 @@ const createComment = async (req, res) => {
     .populate('author', 'username email imageEnabled image displayName')
     .then(async (post) => {
       let postType;
-      let postPrivacy;
       if (post.communityId) {
         postType = 'community';
-        postPrivacy = (await Community.findById(post.communityId)).settings
-          .visibility;
+        // postPrivacy = (await Community.findById(post.communityId)).settings
+        //   .visibility;
       } else {
         postType = 'original';
-        postPrivacy = post.privacy;
+        // postPrivacy = post.privacy;
       }
       let depth;
       let directParent;
@@ -895,7 +749,7 @@ const createComment = async (req, res) => {
             context: postType === 'community' ? 'community' : 'user',
             filename: attrs.src,
             url: `https://sweet-images.s3.eu-west-2.amazonaws.com/${attrs.src}`,
-            privacy: postPrivacy,
+            audiences: post.audiences,
             user: req.user._id,
             post: post._id,
           });
@@ -908,7 +762,7 @@ const createComment = async (req, res) => {
           comment,
           post,
           postAuthor: post.author,
-          postPrivacy,
+          postPrivacy, /* DEBUG */
           commentAuthor: req.user,
           commentParent: directParent,
           mentions: parsedMentions,
@@ -1144,7 +998,7 @@ const deletePost = async (req, res) => {
 
 const editPost = async (req, res) => {
   console.log(req.body);
-  const { postId, context, contextId, body, contentWarning, tags, audience } = req.body;
+  const { postId, context, contextId, body, contentWarning, tags, audiences } = req.body;
   const isCommunityPost = context === 'community' && contextId !== null;
   if (!body) {
     return res.status(404).send(sendError(404, 'Post content empty'));
@@ -1154,7 +1008,7 @@ const editPost = async (req, res) => {
     return res.status(403).send(sendError(403, 'Not authorised to edit this post'));
   }
 
-  const parsedAudience = audience ? audience.map((o) => o.value) : [];
+  const parsedAudiences = audiences.map((o) => o._id);
 
   const { parsedBody, extractedImages } = collapseImages(body);
 
@@ -1185,7 +1039,7 @@ const editPost = async (req, res) => {
           context: isCommunityPost ? 'community' : 'user',
           filename: attrs.src,
           url: `https://sweet-images.s3.eu-west-2.amazonaws.com/${attrs.src}`,
-          privacy: parsedAudience.includes('public') ? 'public' : 'private',
+          audiences: parsedAudiences,
           user: req.user._id,
           post: post._id,
         });
@@ -1194,47 +1048,30 @@ const editPost = async (req, res) => {
     });
   }
 
+  // TEST AND DEBUG!
   const newMentions = mentions.filter((v) => !post.mentions.includes(v));
   for (const mention of newMentions) {
     if (mention !== req.user.username) {
       User.findOne({ username: mention }).then(async (mentioned) => {
-        if (isCommunityPost) {
-          if (mentioned.communities.some((v) => v.equals(post.community))) {
-            notifier.notify({
-              type: 'user',
-              cause: 'mention',
-              notifieeID: mentioned._id,
-              sourceId: req.user._id,
-              subjectId: post._id,
-              url: `/${req.user.username}/${newPostUrl}`,
-              context: 'post',
-            });
-          }
-        } else if (parsedAudience.includes('public') === false) {
-          if (
-            await Relationship.findOne({
-              value: 'trust',
-              fromUser: req.user._id,
-              toUser: mentioned._id,
-            })
-          ) {
-            notifier.notify({
-              type: 'user',
-              cause: 'mention',
-              notifieeID: mentioned._id,
-              sourceId: req.user._id,
-              subjectId: post._id,
-              url: `/${req.user.username}/${newPostUrl}`,
-              context: 'post',
-            });
-          }
-        } else {
+        if (isCommunityPost && mentioned.communities.some((v) => v.equals(post.community))) {
+          console.log("Mentioned user is in the same community as the post was posted in");
           notifier.notify({
             type: 'user',
             cause: 'mention',
             notifieeID: mentioned._id,
             sourceId: req.user._id,
-            subjectId: post._id,
+            subjectId: newPostId,
+            url: `/${req.user.username}/${newPostUrl}`,
+            context: 'post',
+          });
+        } else if (postAudiences.some(o => o.users.includes(mentioned._id))) {
+          console.log("Mentioned user is in one of the post's audiences");
+          notifier.notify({
+            type: 'user',
+            cause: 'mention',
+            notifieeID: mentioned._id,
+            sourceId: req.user._id,
+            subjectId: newPostId,
             url: `/${req.user.username}/${newPostUrl}`,
             context: 'post',
           });
@@ -1260,8 +1097,7 @@ const editPost = async (req, res) => {
     Tag.findOneAndUpdate({ name: tag }, { $pull: { posts: post._id.toString() } }).catch(err => console.error(`Could not remove edited post ${post._id.toString()} from tag ${tag}\n${err}`));
   }
 
-  post.audience = parsedAudience;
-  post.privacy = parsedAudience.includes('public') ? 'public' : 'private';
+  post.audiences = parsedAudiences;
   post.lastEdited = Date.now();
   post.mentions = mentions;
   post.tags = tags;

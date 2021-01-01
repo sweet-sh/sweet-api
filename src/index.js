@@ -16,6 +16,7 @@ const {
   register,
   login,
   listUsers,
+  searchUsers,
   listAllUsers,
   detailUser,
   reportUser,
@@ -45,6 +46,7 @@ const {
 const { createRelationship } = require('./modules/relationship/controller');
 const { createImage, rotateImage } = require('./modules/image/controller');
 const { addToLibrary, removeFromLibrary } = require('./modules/library/controller');
+const { listAudiences, createAudience, deleteAudience, editAudience } = require('./modules/audience/controller');
 
 const app = express();
 const port = process.env.PORT || 8787;
@@ -92,6 +94,7 @@ app.get('/api/communities/:communityid', detailCommunity);
 app.post('/api/community/join', joinCommunity);
 app.post('/api/community/leave', leaveCommunity);
 
+app.get('/api/users/search/:needle', searchUsers);
 app.get('/api/users/all', listAllUsers);
 app.get('/api/users/:sortorder', listUsers);
 app.get('/api/user/:identifier', detailUser);
@@ -114,6 +117,11 @@ app.post('/api/url-metadata', scrapeURL);
 
 app.post('/api/library', addToLibrary);
 app.delete('/api/library', removeFromLibrary);
+
+app.get('/api/audience', listAudiences);
+app.post('/api/audience', createAudience);
+app.put('/api/audience', editAudience);
+app.delete('/api/audience', deleteAudience);
 
 app.listen(port);
 

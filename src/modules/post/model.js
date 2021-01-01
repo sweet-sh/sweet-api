@@ -84,20 +84,14 @@ const plusSchema = new mongoose.Schema({
   type: String // Currently only "plus"
 })
 
-const audienceSchema = new mongoose.Schema({
-  key: { type: String, unique: true },
-  label: String,
-});
-
 const postSchema = new mongoose.Schema({
   type: String, // "original" or "community". note that the equivalent "context" field in image documents stores either "user" or "community".
   community: { type: DBReference, ref: 'Community' }, // hopefully undefined if type=="user"
   authorEmail: String,
   author: { type: DBReference, ref: 'User', required: true },
   url: { type: String, required: true },
-  privacy: { type: String, required: true },
-  // audiences: [audienceSchema],
-  audiences: [String],
+  // privacy: { type: String, required: true },
+  audiences: [ { type: DBReference, ref: 'Audience', required: true } ],
   timestamp: { type: Date, required: true },
   lastUpdated: Date, // intially equal to timestamp, updated as comments are left
   lastEdited: Date, // initially undefined (although it wouldn't be crazy to set it equal to timestamp initially) and then changed when the post content is edited through the saveedits route in postingToSweet.js
