@@ -156,7 +156,7 @@ const listPosts = async (req, res) => {
         };
       } else {
         // if we're not in the community and it's not public, there are no posts we're allowed to view!
-        matchPosts = undefined;
+        matchPosts = {};
       }
       sortMethod = req.user.settings.communityTimelineSorting === 'fluid' ? '-lastUpdated' : '-timestamp'
       break;
@@ -190,13 +190,13 @@ const listPosts = async (req, res) => {
       break;
   }
 
+  console.log(matchPosts);
+
   console.log(sortMethod);
 
   matchPosts[sortMethod.substring(1, sortMethod.length)] = { $lt: timestamp };
 
   matchPosts.type = { $nin: ['draft', 'boost'] };
-
-  console.log(matchPosts);
 
   const query = Post.find(matchPosts)
     .sort(sortMethod)
@@ -246,11 +246,15 @@ const listPosts = async (req, res) => {
       canDisplay = true;
     }
     if (post.type === 'community') {
-      // we don't have to check if the user is in the community before displaying posts to them if we're on the community's page, or if it's a single post page and: the community is public or the user wrote the post
-      // in other words, we do have to check if the user is in the community if those things aren't true, hence the !
+      // we don't have to check if the user is in the community before displaying posts to them if we're on the community's page
+      // (because that's handled by the frontend), and we don't have to check if we're a single post page or a tag page and
+      // EITHER the post's community is public or the current user wrote the post.
+      // In other words, we do have to check if the user is in the community if those things aren't true, hence the !
       if (
         !(
           req.params.context === 'community' ||
+          (req.params.context === 'tag' &&
+            post.community.settings.visibility === 'public') ||
           (req.params.context === 'single' &&
             (post.author._id.equals(req.user._id) ||
               post.community.settings.visibility === 'public'))
