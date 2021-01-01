@@ -190,6 +190,21 @@ const listUsers = async (req, res) => {
   return res.status(200).send(sendResponse(myUsers, 200))
 }
 
+const searchUsers = async (req, res) => {
+  const needle = decodeURI(req.params.needle);
+  if (!needle) {
+    return res.status(200).send(sendResponse([], 200));
+  }
+  const regex = {
+    $regex: needle,
+    $options: 'i'
+  };
+  console.log(regex);
+  const match = await User.find({ isVerified: true, $or: [ { username: regex }, { displayName: regex }]}, { username: 1, displayName: 1, lastUpdated: 1, imageEnabled: 1, image: 1 });
+  console.log(match);
+  return res.status(200).send(sendResponse(match, 200));
+}
+
 const detailUser = async (req, res) => {
   function c(e) {
     console.error('Error in user data builders');
@@ -739,6 +754,7 @@ module.exports = {
   getCoC,
   listUsers,
   listAllUsers,
+  searchUsers,
   login,
   register,
   registerExpoToken,
