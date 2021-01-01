@@ -55,6 +55,7 @@ const userSchema = new mongoose.Schema({
     autoDetectedTimeZone: { type: String, default: '' }, // this will get set to moment's guess of their timezone as soon as they next make a settings change, which they'll have to do to start getting emails which is the only thing that brings timezones into play anyway
     profileVisibility: { type: String, default: 'invisible' },
     newPostPrivacy: { type: String, default: 'public' },
+    newPostAudiences: [ { type: DBReference, ref: 'Audience' } ],
     imageQuality: { type: String, default: 'standard' },
     homeTagTimelineSorting: { type: String, default: 'fluid' },
     userTimelineSorting: { type: String, default: 'chronological' },
