@@ -5,3 +5,4 @@ yarn-error.log
 dist/
 .nyc_output/
 .exporeceipts.log
+config/database.js
