@@ -16,7 +16,7 @@ const notificationSchema = new mongoose.Schema({
 // define the schema for our user model
 const userSchema = new mongoose.Schema({
   joined: Date,
-  lastOnline: Date,
+  // lastOnline: Date,
   lastUpdated: { type: Date, required: true, default: Date.now() },
   isVerified: { type: Boolean, default: false },
   verificationToken: { type: String },
@@ -54,8 +54,7 @@ const userSchema = new mongoose.Schema({
     timezone: { type: String, default: 'auto' },
     autoDetectedTimeZone: { type: String, default: '' }, // this will get set to moment's guess of their timezone as soon as they next make a settings change, which they'll have to do to start getting emails which is the only thing that brings timezones into play anyway
     profileVisibility: { type: String, default: 'invisible' },
-    newPostPrivacy: { type: String, default: 'public' },
-    newPostAudiences: [ { type: DBReference, ref: 'Audience' } ],
+    defaultAudience: { type: DBReference, ref: 'Audience', default: null },
     imageQuality: { type: String, default: 'standard' },
     homeTagTimelineSorting: { type: String, default: 'fluid' },
     userTimelineSorting: { type: String, default: 'chronological' },
