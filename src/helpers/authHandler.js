@@ -3,8 +3,8 @@ const User = require('../modules/user/model');
 const { sendError } = require('../utils')
 
 const authHandler = async (req, res, next) => {
-  console.log(req.originalUrl)
-  console.log(req.headers)
+  // console.log(req.originalUrl)
+  // console.log(req.headers)
   // We don't need to check headers for the login route
   if (req.originalUrl === '/api/login' || req.originalUrl === '/api/register') {
     return next()
@@ -22,7 +22,7 @@ const authHandler = async (req, res, next) => {
     return res.status(404).send(sendError(404, 'No matching user registered in API'))
   }
   // Update user's last online timestamp
-  req.user.lastOnline = Date.now();
+  // req.user.lastOnline = Date.now();
   req.user.save();
   next();
 };
