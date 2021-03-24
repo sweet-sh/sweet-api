@@ -200,7 +200,8 @@ const searchUsers = async (req, res) => {
     $options: 'i'
   };
   console.log(regex);
-  const match = await User.find({ isVerified: true, $or: [ { username: regex }, { displayName: regex }]}, { username: 1, displayName: 1, lastUpdated: 1, imageEnabled: 1, image: 1 });
+  // Do not include yourself in user searches
+  const match = await User.find({ _id: { $ne: req.user._id }, isVerified: true, $or: [ { username: regex }, { displayName: regex }]}, { username: 1, displayName: 1, lastUpdated: 1, imageEnabled: 1, image: 1 });
   console.log(match);
   return res.status(200).send(sendResponse(match, 200));
 }
@@ -220,7 +221,7 @@ const detailUser = async (req, res) => {
     userQuery = { username: req.params.identifier };
   }
 
-  const profileData = await User.findOne(userQuery, 'email username imageEnabled image displayName aboutParsed aboutRaw location pronouns websiteParsed websiteRaw settings acceptedCodeOfConduct lastOnline lastUpdated')
+  const profileData = await User.findOne(userQuery, 'email username imageEnabled image displayName aboutParsed aboutRaw location pronouns websiteParsed websiteRaw settings acceptedCodeOfConduct lastUpdated')
     .catch(err => {
       return res.status(500).send(sendError(500, 'Error fetching user'));
     });
