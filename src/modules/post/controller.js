@@ -102,11 +102,21 @@ const listPosts = async (req, res) => {
   } else {
     isMuted = false;
   }
-  // DEBUG - who can see flagged users?
-  // const flagged = usersFlaggedByMyTrustedUsers
-  //   .concat(myFlaggedUsers)
-  //   .filter((e) => e !== req.user._id);
-  const flagged = null;
+
+  // Who can see flagged users?
+  // You can always see users you yourself have flagged.
+  // You can also see users flagged by other people, as long as you are in an audience they created
+  // where the canSeeFlags capability is set to true.
+  // You can never see if you've been flagged.
+  const usersWhoseFlagsICanSee = (await Audience.find({ users: req.user._id })).filter(o => o.capabilities.canSeeFlags === true).map(o => o.owner);
+  const usersFlaggedByUsersWhoseFlagsICanSee = (await Relationship.find({ fromUser: { $in: usersWhoseFlagsICanSee }, value: 'flag' }));
+  const flagged = usersFlaggedByUsersWhoseFlagsICanSee
+    .filter((e) => e !== req.user._id)
+    .map((v) => v.toUser)
+    .concat(myFlaggedUsers)
+
+  console.log("myFlaggedUsers: ", myFlaggedUsers);
+  console.log("Flagged: ", flagged);
 
   let matchPosts;
   let sortMethod = '-lastUpdated';
@@ -117,18 +127,25 @@ const listPosts = async (req, res) => {
       // we're assuming the user is logged in if this request is being made (it's made by code on a page that only loads
       // if the user is logged in.)
       matchPosts = {
-        $or: [
-          {
-            author: { $in: myFollowedUserIds }
-          },
-          {
-            type: 'community',
-            community: {
-              $in: myCommunities,
+        $and: [{
+          $or: [
+            {
+              author: { $in: myFollowedUserIds }
             },
-          },
-        ],
-        audiences: { $in: audiencesToWhichIBelong }
+            {
+              type: 'community',
+              community: {
+                $in: myCommunities,
+              },
+            },
+          ],
+        },
+        {
+          $or: [
+            { audiences: { $in: audiencesToWhichIBelong } },
+            { visibleToEveryone: true }
+          ],
+        }]
       };
       sortMethod = req.user.settings.homeTagTimelineSorting === 'fluid' ? '-lastUpdated' : '-timestamp'
       break;
@@ -136,22 +153,29 @@ const listPosts = async (req, res) => {
       // if we're on a user's page, obviously we want their posts:
       matchPosts = {
         author: userIdentifier,
-        audiences: { $in: audiencesToWhichIBelong }
-      };
-      // but we also only want posts if they're non-community or they come from a community that we belong to:
-      matchPosts.$or = [
-        {
+        $and: [{
           $or: [
-            { community: { $exists: false } },
-            { community: null }
-          ]
+            { audiences: { $in: audiencesToWhichIBelong } },
+            { visibleToEveryone: true }
+          ],
         },
         {
-          community: {
-            $in: myCommunities,
-          },
-        },
-      ];
+          // but we also only want posts if they're non-community or they come from a community that we belong to:
+          $or: [
+            {
+              $or: [
+                { community: { $exists: false } },
+                { community: null }
+              ]
+            },
+            {
+              community: {
+                $in: myCommunities,
+              },
+            },
+          ]
+        }],
+      };
       sortMethod = req.user.settings.userTimelineSorting === 'fluid' ? '-lastUpdated' : '-timestamp'
       break;
     case 'community':
@@ -173,7 +197,7 @@ const listPosts = async (req, res) => {
     case 'tag':
       const getTag = () => {
         return Tag.findOne({ name: req.params.identifier }).then((tag) => {
-          return { _id: { $in: tag.posts }, audiences: { $in: audiencesToWhichIBelong } };
+          return { _id: { $in: tag.posts }, $or: [{ audiences: { $in: audiencesToWhichIBelong } }, { visibleToEveryone: true }] };
         });
       };
       matchPosts = await getTag();
@@ -182,13 +206,13 @@ const listPosts = async (req, res) => {
     case 'single':
       matchPosts = {
         _id: req.params.identifier,
-        audiences: { $in: audiencesToWhichIBelong }
+        $or: [{ audiences: { $in: audiencesToWhichIBelong } }, { visibleToEveryone: true }]
       };
       break;
     case 'url':
       matchPosts = {
         url: req.params.identifier,
-        audiences: { $in: audiencesToWhichIBelong }
+        $or: [{ audiences: { $in: audiencesToWhichIBelong } }, { visibleToEveryone: true }]
       };
       break;
     case 'library':
@@ -196,20 +220,20 @@ const listPosts = async (req, res) => {
       const libraryPosts = await Library.find({ user: req.user._id }, { post: 1 });
       matchPosts = {
         _id: { $in: libraryPosts.map(o => o.post) },
-        audiences: { $in: audiencesToWhichIBelong }
+        $or: [{ audiences: { $in: audiencesToWhichIBelong } }, { visibleToEveryone: true }]
       }
       break;
     default:
       break;
   }
 
-  console.log(matchPosts);
+  // console.log(JSON.stringify(matchPosts));
 
   matchPosts[sortMethod.substring(1, sortMethod.length)] = { $lt: timestamp };
 
   matchPosts.type = { $nin: ['draft', 'boost'] };
 
-  console.log(matchPosts);
+  console.log(JSON.stringify(matchPosts));
 
   const query = Post.find(matchPosts)
     .sort(sortMethod)
@@ -249,7 +273,7 @@ const listPosts = async (req, res) => {
   const displayedPosts = []; // populated by the for loop below
 
   for (const post of posts) {
-    let canDisplay = false;
+    let canDisplay = true;
     // Users can't see community posts by muted members
     if (post.type === 'community') {
       // we don't have to check if the user is in the community before displaying posts to them if we're on the community's page, or if it's a single post page and: the community is public or the user wrote the post
@@ -305,7 +329,7 @@ const listPosts = async (req, res) => {
       inLibrary,
       isYourPost,
       viewingContext: req.params.context,
-      authorFlagged: flagged.some((v) => v.equals(post.author._id)),
+      authorFlagged: flagged.length ? flagged.some((v) => v.equals(post.author._id)) : false,
       canReply: canCommentOnPost({
         user: req.user,
         post: post,
@@ -335,9 +359,9 @@ const listPosts = async (req, res) => {
           comment.renderedHTML = div.innerHTML;
           // }
 
-          comment.authorFlagged = flagged.some((v) =>
+          comment.authorFlagged = flagged.length ? flagged.some((v) =>
             v.equals(comment.author._id),
-          );
+          ) : false;
           comment.canDisplay = true;
           comment.muted = false;
           if (myMutedUserEmails.includes(comment.author.email)) {
@@ -454,7 +478,6 @@ const createPost = async (req, res) => {
     return res.status(404).send(sendError(404, 'Post content empty'));
   }
 
-  // Posts sent by the mobile app have a different payload
   let isCommunityPost;
   let communityId;
   let parsedAudiences;
@@ -462,6 +485,8 @@ const createPost = async (req, res) => {
   let extractedImages;
   let parsedMentions;
   let parsedTags;
+  let visibleToEveryone;
+  // Posts sent by the mobile app have a different payload
   if (source === 'mobile') {
     const parsedPayload = parseText(body);
     isCommunityPost = req.body.isCommunityPost || false;
@@ -470,14 +495,13 @@ const createPost = async (req, res) => {
         ? contextId
         : req.body.communityId
       : undefined;
-    // The Audience of posts in communities is always null, because
+    // The Audience of posts in communities is always an empty array, because
     // it's ultimately controlled by the visibility settings of the community.
-    parsedAudiences = isCommunityPost ? null : parsedPayload.audiences.map(o => o._id);
+    parsedAudiences = isCommunityPost ? [] : parsedPayload.audiences.map(o => o._id);
     parsedBody = parsedPayload.json;
     // Manually creating a parseable array out of what the mobile app sends
     extractedImages = req.body.images ? req.body.images.map((s) => ({ src: `images/${s}`, alt: null })) : [];
     if (extractedImages.length) {
-      console.log("Let's go!");
       // We need to append our extracted images to the Prosemirror JSON object... manually.
       // May God forgive us for our sins
       // We know that we can only have up to four images per mobile post, so that's always
@@ -504,9 +528,9 @@ const createPost = async (req, res) => {
   } else {
     isCommunityPost = context === 'community' && contextId !== null;
     communityId = contextId;
-    // The Audience of posts in communities is always null, because
+    // The Audience of posts in communities is always an empty array, because
     // it's ultimately controlled by the visibility settings of the community.
-    parsedAudiences = isCommunityPost ? null : audiences.map(o => o._id);
+    parsedAudiences = isCommunityPost ? [] : audiences.map(o => o._id);
     const bodyReturn = collapseImages(body);
     parsedBody = bodyReturn.parsedBody;
     extractedImages = bodyReturn.extractedImages;
@@ -517,11 +541,20 @@ const createPost = async (req, res) => {
   const newPostUrl = nanoid();
   const postCreationTime = new Date();
 
+  // We need to check if the Audience is 'everyone' - the 'Everyone' Audience
+  // is a special case. When we have a post with the 'Everyone' Audience,
+  // the 'audiences' array is empty and we set the visibleToEveryone field to true.
+  if (parsedAudiences.some(v => v === 'everyone')) {
+    parsedAudiences = [];
+    visibleToEveryone = true;
+  }
+
   const post = new Post({
     type: isCommunityPost ? 'community' : 'original',
     community: communityId,
     author: req.user._id,
     url: newPostUrl,
+    visibleToEveryone,
     audiences: parsedAudiences,
     timestamp: postCreationTime,
     lastUpdated: postCreationTime,
@@ -1008,7 +1041,16 @@ const editPost = async (req, res) => {
     return res.status(403).send(sendError(403, 'Not authorised to edit this post'));
   }
 
-  const parsedAudiences = audiences.map((o) => o._id);
+  let parsedAudiences = audiences.map((o) => o._id);
+  let visibleToEveryone;
+
+  // We need to check if the Audience is 'everyone' - the 'Everyone' Audience
+  // is a special case. When we have a post with the 'Everyone' Audience,
+  // the 'audiences' array is empty and we set the visibleToEveryone field to true.
+  if (parsedAudiences.some(v => v === 'everyone')) {
+    parsedAudiences = [];
+    visibleToEveryone = true;
+  }
 
   const { parsedBody, extractedImages } = collapseImages(body);
 
@@ -1098,6 +1140,7 @@ const editPost = async (req, res) => {
   }
 
   post.audiences = parsedAudiences;
+  post.visibleToEveryone = visibleToEveryone;
   post.lastEdited = Date.now();
   post.mentions = mentions;
   post.tags = tags;

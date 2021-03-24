@@ -91,6 +91,7 @@ const postSchema = new mongoose.Schema({
   author: { type: DBReference, ref: 'User', required: true },
   url: { type: String, required: true },
   // privacy: { type: String, required: true },
+  visibleToEveryone: Boolean,
   audiences: [ { type: DBReference, ref: 'Audience', required: true } ],
   timestamp: { type: Date, required: true },
   lastUpdated: Date, // intially equal to timestamp, updated as comments are left
