@@ -13,7 +13,7 @@
   "dependencies": {
     "@handlebars/allow-prototype-access": "^1.0.3",
     "autolinker": "^3.14.1",
-    "aws-sdk": "^2.738.0",
+    "aws-sdk": "^2.814.0",
     "bcrypt": "^5.0.0",
     "body-parser": "^1.19.0",
     "cors": "^2.8.5",
