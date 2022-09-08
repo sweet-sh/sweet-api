@@ -27,7 +27,7 @@
     "handlebars-helpers": "^0.10.0",
     "jsdom": "^16.4.0",
     "jsonwebtoken": "^8.5.1",
-    "jszip": "^3.5.0",
+    "jszip": "^3.7.0",
     "metascraper": "^5.14.4",
     "metascraper-description": "^5.14.4",
     "metascraper-image": "^5.14.4",
